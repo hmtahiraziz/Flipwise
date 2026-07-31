@@ -1,0 +1,29 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "assets/fonts/Inter-Medium.ttf",
+      "sha1": "2a05620973e6c901fec5f9b37f19c5b911531b63"
+    },
+    {
+      "path": "assets/fonts/Inter-Regular.ttf",
+      "sha1": "16a050cc53eca5e854f28d94fce7a5afd1c67901"
+    },
+    {
+      "path": "assets/fonts/Inter-SemiBold.ttf",
+      "sha1": "a83082fa24f575dc4b0c258f57398485eb241952"
+    },
+    {
+      "path": "assets/fonts/Manrope-Bold.ttf",
+      "sha1": "1488ed547ab55a04a4d3915090b8b409c1de6be8"
+    },
+    {
+      "path": "assets/fonts/Manrope-Medium.ttf",
+      "sha1": "7af0da7db994ae3cb4c00d1ca16006735813c45b"
+    },
+    {
+      "path": "assets/fonts/Manrope-SemiBold.ttf",
+      "sha1": "0e48b996390b6bc0edf780a6e01f2b6b8fbdb6fe"
+    }
+  ]
+}
