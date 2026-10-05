@@ -13,8 +13,24 @@ export const useOnboardingStore = create<OnboardingState>(set => ({
   isHydrated: false,
 
   hydrate: () => {
-    const hasCompletedOnboarding = onboardingStorage.getHasCompletedOnboarding();
-    set({hasCompletedOnboarding, isHydrated: true});
+    if (__DEV__) {
+      console.log('[Onboarding] hydrate() start');
+    }
+    try {
+      const hasCompletedOnboarding = onboardingStorage.getHasCompletedOnboarding();
+      set({hasCompletedOnboarding});
+      if (__DEV__) {
+        console.log('[Onboarding] hydrate() read', {hasCompletedOnboarding});
+      }
+    } catch (error) {
+      console.warn('[Onboarding] hydrate() failed:', error);
+    } finally {
+      // Always unblock RootNavigator, even when MMKV/storage throws.
+      set({isHydrated: true});
+      if (__DEV__) {
+        console.log('[Onboarding] hydrate() done — isHydrated=true');
+      }
+    }
   },
 
   completeOnboarding: () => {

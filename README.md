@@ -106,3 +106,21 @@ Configure in `mobile/.env` as `API_BASE_URL`.
 3. **Library** — decks, AI generation, spaced repetition review
 
 After changing `mobile/.env`, restart Metro with `--reset-cache`.
+
+## Play Store (Android)
+
+See **[mobile/docs/PLAY_STORE.md](mobile/docs/PLAY_STORE.md)** for the full release checklist.
+
+Quick path:
+
+```powershell
+cd mobile
+npm run keystore:generate
+# create .env.production with HTTPS API + pk_live_ Clerk key
+$env:ENVFILE=".env.production"
+npm run android:bundle
+```
+
+Upload `mobile/android/app/build/outputs/bundle/release/app-release.aab` to Play Console.
+
+Public legal pages (after backend deploy): `GET /privacy`, `GET /terms`.

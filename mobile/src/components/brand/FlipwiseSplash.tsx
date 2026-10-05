@@ -3,6 +3,7 @@ import {useEffect} from 'react';
 import {Dimensions, StatusBar, Text, View} from 'react-native';
 import Animated, {
   Easing,
+  FadeIn,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -33,18 +34,17 @@ const CARD_RADIUS = 20;
 const ICON_RADIUS = 12;
 const LOADER_WIDTH = 192;
 const LOADER_HEIGHT = 6;
-const LOADER_BAR_WIDTH = LOADER_WIDTH / 2;
+const LOADER_BAR_WIDTH = LOADER_WIDTH * 0.42;
 
 const floatEasing = Easing.inOut(Easing.ease);
-const loaderEasing = Easing.bezier(0.65, 0, 0.35, 1);
+const loaderEasing = Easing.bezier(0.4, 0, 0.2, 1);
 
 export function FlipwiseSplash() {
   return (
     <View
-      className="flex-1 overflow-hidden"
-      style={{backgroundColor: splash.background}}
+      style={{flex: 1, overflow: 'hidden', backgroundColor: splash.background}}
       accessibilityRole="progressbar"
-      accessibilityLabel="Loading Flipwise AI">
+      accessibilityLabel="Loading Flipwise">
       <StatusBar
         barStyle="dark-content"
         backgroundColor={splash.background}
@@ -53,30 +53,38 @@ export function FlipwiseSplash() {
 
       <DotGridBackground />
 
-      <View className="flex-1 items-center justify-center px-5">
-        <View className="items-center">
+      <Animated.View
+        entering={FadeIn.duration(420).easing(Easing.out(Easing.cubic))}
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 20,
+        }}>
+        <View style={{alignItems: 'center'}}>
           <SplashLogoMark />
 
-          <View className="items-center mt-6">
+          <View style={{alignItems: 'center', marginTop: 24}}>
             <Text
-              className="text-center"
               style={{
                 fontFamily: fonts.display,
                 fontSize: 32,
                 lineHeight: 40,
                 letterSpacing: -0.64,
                 color: splash.onSurface,
+                textAlign: 'center',
               }}>
-              Flipwise AI
+              Flipwise
             </Text>
             <Text
-              className="text-center mt-2"
               style={{
                 fontFamily: fonts.body,
                 fontSize: 16,
                 lineHeight: 24,
                 color: splash.muted,
                 maxWidth: 280,
+                textAlign: 'center',
+                marginTop: 8,
               }}>
               {APP_TAGLINE}
             </Text>
@@ -84,13 +92,14 @@ export function FlipwiseSplash() {
 
           <SplashLoadingBar />
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 }
 
 function SplashLogoMark() {
   const floatY = useSharedValue(0);
+  const scale = useSharedValue(1);
 
   useEffect(() => {
     floatY.value = withRepeat(
@@ -101,10 +110,18 @@ function SplashLogoMark() {
       -1,
       false,
     );
-  }, [floatY]);
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.03, {duration: 2000, easing: floatEasing}),
+        withTiming(1, {duration: 2000, easing: floatEasing}),
+      ),
+      -1,
+      false,
+    );
+  }, [floatY, scale]);
 
   const floatStyle = useAnimatedStyle(() => ({
-    transform: [{translateY: floatY.value}],
+    transform: [{translateY: floatY.value}, {scale: scale.value}],
   }));
 
   return (
@@ -122,7 +139,6 @@ function SplashLogoMark() {
         }}
       />
       <View
-        className="items-center justify-center"
         style={{
           width: LOGO_SIZE,
           height: LOGO_SIZE,
@@ -130,9 +146,10 @@ function SplashLogoMark() {
           backgroundColor: splash.background,
           borderWidth: 1,
           borderColor: splash.border,
+          alignItems: 'center',
+          justifyContent: 'center',
         }}>
         <View
-          className="items-center justify-center"
           style={{
             width: ICON_BOX_SIZE,
             height: ICON_BOX_SIZE,
@@ -140,6 +157,8 @@ function SplashLogoMark() {
             backgroundColor: splash.primaryContainer,
             borderWidth: 1,
             borderColor: splash.onSurfaceVariant,
+            alignItems: 'center',
+            justifyContent: 'center',
             transform: [{rotate: '3deg'}],
           }}>
           <MaterialIcons
@@ -157,11 +176,12 @@ function SplashLoadingBar() {
   const translateX = useSharedValue(-LOADER_BAR_WIDTH);
 
   useEffect(() => {
+    // Indeterminate sweep: bar exits left, crosses track, exits right, loops.
     translateX.value = withRepeat(
-      withSequence(
-        withTiming(0, {duration: 1000, easing: loaderEasing}),
-        withTiming(LOADER_BAR_WIDTH, {duration: 1000, easing: loaderEasing}),
-      ),
+      withTiming(LOADER_WIDTH, {
+        duration: 1400,
+        easing: loaderEasing,
+      }),
       -1,
       false,
     );
@@ -173,12 +193,13 @@ function SplashLoadingBar() {
 
   return (
     <View
-      className="mt-8 overflow-hidden"
       style={{
+        marginTop: 32,
         width: LOADER_WIDTH,
         height: LOADER_HEIGHT,
         borderRadius: LOADER_HEIGHT / 2,
         backgroundColor: splash.surfaceContainer,
+        overflow: 'hidden',
       }}>
       <Animated.View
         style={[
@@ -203,9 +224,16 @@ function DotGridBackground() {
 
   return (
     <View
-      className="absolute inset-0"
       pointerEvents="none"
-      style={{opacity: 0.03, zIndex: -1}}>
+      style={{
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        opacity: 0.03,
+        zIndex: -1,
+      }}>
       <Svg width={width} height={height}>
         <Defs>
           <Pattern

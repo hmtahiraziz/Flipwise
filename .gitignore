@@ -1,7 +1,14 @@
 # Environment / secrets
 .env
 .env.local
+.env.production
 .env.*.local
+
+# Android signing (never commit upload keys)
+*.jks
+*.keystore
+!**/debug.keystore
+**/keystore.properties
 
 # Logs
 *.log
@@ -21,3 +28,7 @@ Thumbs.db
 
 # Dependencies (root-level if any)
 node_modules/
+
+# Release artifacts copied outside android/build
+*.aab
+*.apk

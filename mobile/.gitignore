@@ -32,7 +32,9 @@ local.properties
 *.hprof
 .cxx/
 *.keystore
+*.jks
 !debug.keystore
+android/keystore.properties
 .kotlin/
 
 # node.js
@@ -44,7 +46,11 @@ yarn-error.log
 # Environment / secrets
 .env
 .env.local
+.env.production
 .env.*.local
+
+# Local publish notes (keep out of VCS if preferred)
+docs/PLAY_STORE.md
 
 # fastlane
 #
@@ -60,6 +66,8 @@ yarn-error.log
 
 # Bundle artifact
 *.jsbundle
+*.aab
+*.apk
 
 # Ruby / CocoaPods
 **/Pods/

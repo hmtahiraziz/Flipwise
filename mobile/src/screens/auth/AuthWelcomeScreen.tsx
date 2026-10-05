@@ -14,6 +14,7 @@ import {FlipwiseWordmark} from '../../components/brand/FlipwiseWordmark';
 import {AuthDivider} from '../../components/auth/AuthDivider';
 import {GoogleSignInButton} from '../../components/auth/GoogleSignInButton';
 import {Button} from '../../components/ui/Button';
+import {PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL} from '../../config/app';
 import {APP_TAGLINE} from '../../config/brand';
 import type {AuthStackParamList} from '../../navigation/types';
 
@@ -67,11 +68,11 @@ export function AuthWelcomeScreen({navigation}: Props) {
           </Pressable>
 
           <View className="flex-row justify-center mt-10 gap-4">
-            <Pressable onPress={() => void Linking.openURL('https://flipwise.app/terms')}>
+            <Pressable onPress={() => void Linking.openURL(TERMS_OF_SERVICE_URL)}>
               <Text className="text-caption text-muted">Terms</Text>
             </Pressable>
             <Text className="text-caption text-muted">·</Text>
-            <Pressable onPress={() => void Linking.openURL('https://flipwise.app/privacy')}>
+            <Pressable onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}>
               <Text className="text-caption text-muted">Privacy</Text>
             </Pressable>
           </View>

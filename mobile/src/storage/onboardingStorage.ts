@@ -1,6 +1,6 @@
-import {createMMKV} from 'react-native-mmkv';
+import {createSafeMMKV} from './createSafeMMKV';
 
-const storage = createMMKV({id: 'flipwise-app'});
+const storage = createSafeMMKV('flipwise-app');
 
 const KEYS = {
   hasCompletedOnboarding: 'hasCompletedOnboarding',
@@ -8,10 +8,19 @@ const KEYS = {
 
 export const onboardingStorage = {
   getHasCompletedOnboarding(): boolean {
-    return storage.getBoolean(KEYS.hasCompletedOnboarding) ?? false;
+    try {
+      return storage.getBoolean(KEYS.hasCompletedOnboarding) ?? false;
+    } catch (error) {
+      console.warn('[OnboardingStorage] getHasCompletedOnboarding failed:', error);
+      return false;
+    }
   },
 
   setHasCompletedOnboarding(value: boolean) {
-    storage.set(KEYS.hasCompletedOnboarding, value);
+    try {
+      storage.set(KEYS.hasCompletedOnboarding, value);
+    } catch (error) {
+      console.warn('[OnboardingStorage] setHasCompletedOnboarding failed:', error);
+    }
   },
 };

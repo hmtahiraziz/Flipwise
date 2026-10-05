@@ -225,7 +225,7 @@ export const dataHandlingSummary: LegalDocument = {
       title: 'Permissions',
       paragraphs: [
         'Internet — required to sync decks and authenticate.',
-        'Storage (when used) — only for importing study files you choose; we do not access unrelated files on your device.',
+        'Document access — when you import a study file, the system file picker grants one-time access to that file only.',
       ],
     },
     {

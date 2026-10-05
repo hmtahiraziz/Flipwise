@@ -1,6 +1,6 @@
-import {createMMKV} from 'react-native-mmkv';
+import {createSafeMMKV} from './createSafeMMKV';
 
-const storage = createMMKV({id: 'flipwise-auth'});
+const storage = createSafeMMKV('flipwise-auth');
 
 const KEYS = {
   accessToken: 'accessToken',
@@ -10,31 +10,58 @@ const KEYS = {
 
 export const tokenStorage = {
   getAccessToken(): string | undefined {
-    return storage.getString(KEYS.accessToken);
+    try {
+      return storage.getString(KEYS.accessToken);
+    } catch (error) {
+      console.warn('[TokenStorage] getAccessToken failed:', error);
+      return undefined;
+    }
   },
 
   getRefreshToken(): string | undefined {
-    return storage.getString(KEYS.refreshToken);
+    try {
+      return storage.getString(KEYS.refreshToken);
+    } catch (error) {
+      console.warn('[TokenStorage] getRefreshToken failed:', error);
+      return undefined;
+    }
   },
 
   getUserJson(): string | undefined {
-    return storage.getString(KEYS.user);
+    try {
+      return storage.getString(KEYS.user);
+    } catch (error) {
+      console.warn('[TokenStorage] getUserJson failed:', error);
+      return undefined;
+    }
   },
 
   setSession(accessToken: string, refreshToken: string, userJson: string) {
-    storage.set(KEYS.accessToken, accessToken);
-    storage.set(KEYS.refreshToken, refreshToken);
-    storage.set(KEYS.user, userJson);
+    try {
+      storage.set(KEYS.accessToken, accessToken);
+      storage.set(KEYS.refreshToken, refreshToken);
+      storage.set(KEYS.user, userJson);
+    } catch (error) {
+      console.warn('[TokenStorage] setSession failed:', error);
+    }
   },
 
   setTokens(accessToken: string, refreshToken: string) {
-    storage.set(KEYS.accessToken, accessToken);
-    storage.set(KEYS.refreshToken, refreshToken);
+    try {
+      storage.set(KEYS.accessToken, accessToken);
+      storage.set(KEYS.refreshToken, refreshToken);
+    } catch (error) {
+      console.warn('[TokenStorage] setTokens failed:', error);
+    }
   },
 
   clear() {
-    storage.remove(KEYS.accessToken);
-    storage.remove(KEYS.refreshToken);
-    storage.remove(KEYS.user);
+    try {
+      storage.remove(KEYS.accessToken);
+      storage.remove(KEYS.refreshToken);
+      storage.remove(KEYS.user);
+    } catch (error) {
+      console.warn('[TokenStorage] clear failed:', error);
+    }
   },
 };

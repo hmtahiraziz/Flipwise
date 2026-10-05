@@ -7,6 +7,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { authRouter } from "./routes/auth.routes";
 import { cardsRouter, deckCardsRouter } from "./routes/cards.routes";
 import { decksRouter } from "./routes/decks.routes";
+import { legalRouter } from "./routes/legal.routes";
 import { progressRouter } from "./routes/progress.routes";
 import { reviewsRouter } from "./routes/reviews.routes";
 
@@ -14,7 +15,18 @@ export function createApp() {
   const env = getEnv();
   const app = express();
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:"],
+          scriptSrc: ["'self'"],
+        },
+      },
+    }),
+  );
   app.use(
     cors({
       origin: env.CORS_ORIGIN === "*" ? true : (env.CORS_ORIGIN ?? true),
@@ -32,6 +44,9 @@ export function createApp() {
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
   });
+
+  // Public legal pages for Play Console and in-app HTTPS links.
+  app.use(legalRouter);
 
   app.use("/api/auth", authLimiter, authRouter);
   app.use("/api/decks", decksRouter);

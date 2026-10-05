@@ -6,10 +6,8 @@ module.exports = {
   version: '1.0.0',
   android: {
     package: 'com.flipwise.app',
-    permissions: [
-      'android.permission.READ_EXTERNAL_STORAGE',
-      'android.permission.WRITE_EXTERNAL_STORAGE',
-    ],
+    // Internet is declared in AndroidManifest. Document picker uses the
+    // system file picker (SAF) and does not need broad storage permissions.
   },
   ios: {
     bundleIdentifier: 'com.flipwise.app',

@@ -4,10 +4,13 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
+    "android:bundle": "cd android && gradlew.bat bundleRelease",
+    "android:bundle:unix": "cd android && ./gradlew bundleRelease",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "keystore:generate": "pwsh -File ./scripts/generate-upload-keystore.ps1"
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.31",
