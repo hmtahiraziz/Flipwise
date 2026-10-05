@@ -1,6 +1,11 @@
 import {API_BASE_URL as ENV_API_BASE_URL} from '@env';
 
-export const API_BASE_URL = ENV_API_BASE_URL?.trim() || 'http://localhost:3000';
+function normalizeBaseUrl(raw: string | undefined): string {
+  const trimmed = raw?.trim() || 'http://localhost:3000';
+  return trimmed.replace(/\/+$/, '');
+}
+
+export const API_BASE_URL = normalizeBaseUrl(ENV_API_BASE_URL);
 
 export function isLocalApiUrl(url: string = API_BASE_URL): boolean {
   try {
