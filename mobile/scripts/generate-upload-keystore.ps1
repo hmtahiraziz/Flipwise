@@ -1,6 +1,6 @@
 # Generates a Play Store upload keystore and android/keystore.properties.
-# Keep the .jks + passwords offline — never commit them.
-# Usage (from repo):  pwsh mobile/scripts/generate-upload-keystore.ps1
+# Keep the .jks + passwords offline - never commit them.
+# Usage:  powershell -File mobile/scripts/generate-upload-keystore.ps1
 
 $ErrorActionPreference = "Stop"
 
@@ -10,7 +10,7 @@ $propsPath = Join-Path $androidDir "keystore.properties"
 $keyAlias = "flipwise-upload"
 
 if (Test-Path $keystorePath) {
-    Write-Error "Keystore already exists at $keystorePath — aborting to avoid overwrite."
+    Write-Error "Keystore already exists at $keystorePath - aborting to avoid overwrite."
 }
 
 $keytool = Get-Command keytool -ErrorAction SilentlyContinue
@@ -64,4 +64,4 @@ Write-Host "  $keystorePath"
 Write-Host "  $propsPath"
 Write-Host ""
 Write-Host "Back up the .jks and passwords securely. Losing them blocks Play updates."
-Write-Host "Next: set production .env values, then: npm run android:bundle"
+Write-Host "Next: set production .env values, then rebuild the release APK/AAB."

@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
-    "keystore:generate": "pwsh -File ./scripts/generate-upload-keystore.ps1"
+    "keystore:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/generate-upload-keystore.ps1",
+    "keystore:properties": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/write-keystore-properties.ps1"
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.31",
