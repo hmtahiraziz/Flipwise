@@ -17,6 +17,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   name: text("name"),
   avatarUrl: text("avatar_url"),
+  preferencesJson: text("preferences_json"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -43,6 +44,9 @@ export const decks = pgTable("decks", {
   subject: text("subject").notNull(),
   description: text("description"),
   coverImageUrl: text("cover_image_url"),
+  examDate: date("exam_date"),
+  isFavorite: boolean("is_favorite").notNull().default(false),
+  tags: text("tags"),
   isArchived: boolean("is_archived").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -59,6 +63,9 @@ export const flashcards = pgTable("flashcards", {
     .references(() => decks.id, { onDelete: "cascade" }),
   question: text("question").notNull(),
   answer: text("answer").notNull(),
+  explanation: text("explanation"),
+  hint: text("hint"),
+  cardType: text("card_type").notNull().default("basic"),
   imageUrl: text("image_url"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })

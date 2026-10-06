@@ -29,8 +29,15 @@ export function useReviewMutations(deckId?: string) {
   };
 
   const rateMutation = useMutation({
-    mutationFn: ({cardId, rating}: {cardId: string; rating: EaseRating}) =>
-      rateCard(cardId, rating),
+    mutationFn: ({
+      cardId,
+      rating,
+      durationMs,
+    }: {
+      cardId: string;
+      rating: EaseRating;
+      durationMs?: number;
+    }) => rateCard(cardId, rating, durationMs),
     onSuccess: async () => {
       await invalidateReviewData();
     },

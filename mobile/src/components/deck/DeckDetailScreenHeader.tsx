@@ -4,38 +4,94 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {fonts} from '../../config/theme';
 import {deckDetailTokens} from '../../config/deckDetailTokens';
+import {BlurSurface} from '../ui/BlurSurface';
 
 type DeckDetailScreenHeaderProps = {
   title: string;
+  subtitle?: string;
   onBack: () => void;
+  onMore?: () => void;
   right?: ReactNode;
-  onTitleLongPress?: () => void;
   compact?: boolean;
 };
 
 export function DeckDetailScreenHeader({
   title,
+  subtitle,
   onBack,
+  onMore,
   right,
-  onTitleLongPress,
   compact,
 }: DeckDetailScreenHeaderProps) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View
+    <BlurSurface
+      fallbackOpacity={0.92}
       style={{
-        paddingTop: Math.max(insets.top, 8) + 8,
-        paddingBottom: 16,
-        paddingHorizontal: deckDetailTokens.containerPadding,
-        backgroundColor: deckDetailTokens.surface,
+        paddingTop: Math.max(insets.top, 8),
+        backgroundColor: 'rgba(247, 248, 244, 0.88)',
+        borderBottomWidth: 1,
+        borderBottomColor: deckDetailTokens.borderSubtle,
       }}>
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center flex-1 min-w-0" style={{gap: 16}}>
+      <View
+        style={{
+          minHeight: 64,
+          paddingHorizontal: deckDetailTokens.containerPadding,
+          paddingBottom: 12,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+        <Pressable
+          onPress={onBack}
+          hitSlop={8}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+          className="active:opacity-70"
+          style={{
+            width: 40,
+            height: 40,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 999,
+            backgroundColor: deckDetailTokens.surfaceWarm,
+          }}>
+          <MaterialIcons name="arrow-back" size={22} color={deckDetailTokens.ink} />
+        </Pressable>
+
+        <View style={{flex: 1, minWidth: 0}}>
+          <Text
+            style={{
+              fontFamily: fonts.displaySemiBold,
+              fontSize: compact ? 18 : 20,
+              lineHeight: compact ? 24 : 26,
+              color: deckDetailTokens.ink,
+            }}
+            numberOfLines={1}>
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text
+              style={{
+                fontFamily: fonts.bodyBold,
+                fontSize: 11,
+                letterSpacing: 0.5,
+                textTransform: 'uppercase',
+                color: deckDetailTokens.primary,
+                marginTop: 1,
+              }}
+              numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+
+        {onMore ? (
           <Pressable
-            onPress={onBack}
+            onPress={onMore}
             hitSlop={8}
-            accessibilityLabel="Go back"
+            accessibilityLabel="Deck options"
             accessibilityRole="button"
             className="active:opacity-70"
             style={{
@@ -44,35 +100,14 @@ export function DeckDetailScreenHeader({
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: 999,
+              backgroundColor: deckDetailTokens.surfaceWarm,
             }}>
-            <MaterialIcons name="arrow-back" size={24} color={deckDetailTokens.ink} />
+            <MaterialIcons name="more-vert" size={22} color={deckDetailTokens.ink} />
           </Pressable>
-          <Pressable
-            onLongPress={onTitleLongPress}
-            disabled={!onTitleLongPress}
-            className="flex-1 min-w-0">
-            <Text
-              style={{
-                fontFamily: fonts.display,
-                fontSize: compact ? 22 : 24,
-                lineHeight: compact ? 28 : 32,
-                fontWeight: '800',
-                letterSpacing: -0.48,
-                color: deckDetailTokens.ink,
-              }}
-              numberOfLines={1}>
-              {title}
-            </Text>
-          </Pressable>
-        </View>
-        {right ? (
-          <View
-            className="shrink-0 items-center justify-center"
-            style={{width: 40, marginLeft: 12}}>
-            {right}
-          </View>
         ) : null}
+
+        {right ? <View style={{marginLeft: 2}}>{right}</View> : null}
       </View>
-    </View>
+    </BlurSurface>
   );
 }

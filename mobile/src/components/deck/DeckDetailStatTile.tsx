@@ -7,47 +7,57 @@ type DeckDetailStatTileProps = {
   icon: string;
   value: string | number;
   label: string;
+  accent?: boolean;
 };
 
-export function DeckDetailStatTile({icon, value, label}: DeckDetailStatTileProps) {
+export function DeckDetailStatTile({
+  icon,
+  value,
+  label,
+  accent,
+}: DeckDetailStatTileProps) {
   return (
     <View
-      className="flex-1 items-center justify-center"
       style={{
-        backgroundColor: deckDetailTokens.surfaceWarm,
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: accent
+          ? deckDetailTokens.brandMuted
+          : deckDetailTokens.surfaceContainer,
         borderRadius: deckDetailTokens.cardRadius,
         borderWidth: 1,
-        borderColor: deckDetailTokens.border,
-        paddingVertical: 16,
-        paddingHorizontal: 8,
-        minHeight: 108,
-        shadowColor: '#000',
-        shadowOffset: {width: 0, height: 1},
-        shadowOpacity: 0.04,
-        shadowRadius: 4,
-        elevation: 1,
+        borderColor: deckDetailTokens.borderSubtle,
+        paddingVertical: 14,
+        paddingHorizontal: 6,
+        minHeight: 100,
+        gap: 4,
       }}>
-      <MaterialIcons name={icon} size={20} color={deckDetailTokens.mutedText} />
+      <MaterialIcons
+        name={icon}
+        size={18}
+        color={accent ? deckDetailTokens.primary : deckDetailTokens.mutedText}
+      />
       <Text
         style={{
           fontFamily: fonts.display,
-          fontSize: 24,
-          lineHeight: 32,
-          fontWeight: '700',
+          fontSize: 22,
+          lineHeight: 28,
+          fontWeight: '800',
           color: deckDetailTokens.ink,
-          marginTop: 8,
-        }}>
+        }}
+        numberOfLines={1}
+        adjustsFontSizeToFit>
         {value}
       </Text>
       <Text
         style={{
-          fontFamily: fonts.bodySemiBold,
+          fontFamily: fonts.bodyBold,
           fontSize: 10,
           lineHeight: 13,
-          letterSpacing: 0.2,
+          letterSpacing: 0.4,
           textTransform: 'uppercase',
           color: deckDetailTokens.mutedText,
-          marginTop: 4,
           textAlign: 'center',
         }}>
         {label}

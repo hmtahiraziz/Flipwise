@@ -1,7 +1,7 @@
 import {Pressable, Text, View} from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {previewIntervalHint} from '../../lib/sm2';
-import {libraryTokens} from '../../config/libraryTokens';
+import {fonts} from '../../config/theme';
 import {reviewTokens} from '../../config/reviewTokens';
 import type {EaseRating} from '../../types/api';
 
@@ -14,10 +14,12 @@ type ReviewState = {
 type RatingOption = {
   rating: EaseRating;
   label: string;
-  icon: string;
+  icon?: string;
   bg: string;
+  border: string;
   text: string;
-  iconColor: string;
+  hintColor: string;
+  recommended?: boolean;
 };
 
 type RatingBarProps = {
@@ -28,7 +30,7 @@ type RatingBarProps = {
 };
 
 function formatRatingHint(rating: EaseRating, hint: string): string {
-  if (rating === 'again') return '1 min';
+  if (rating === 'again') return '< 1 min';
   if (hint === '<1d') return '<1 day';
   if (hint.endsWith('d')) {
     const days = parseInt(hint, 10);
@@ -51,32 +53,35 @@ const RATING_OPTIONS: RatingOption[] = [
     label: 'Again',
     icon: 'replay',
     bg: reviewTokens.againBg,
+    border: reviewTokens.againBorder,
     text: reviewTokens.againText,
-    iconColor: reviewTokens.againText,
+    hintColor: reviewTokens.muted,
   },
   {
     rating: 'hard',
     label: 'Hard',
-    icon: 'sentiment-neutral',
     bg: reviewTokens.hardBg,
+    border: reviewTokens.hardBorder,
     text: reviewTokens.hardText,
-    iconColor: reviewTokens.hardText,
+    hintColor: reviewTokens.muted,
   },
   {
     rating: 'good',
     label: 'Good',
-    icon: 'sentiment-satisfied',
     bg: reviewTokens.goodBg,
+    border: reviewTokens.goodBorder,
     text: reviewTokens.goodText,
-    iconColor: reviewTokens.goodText,
+    hintColor: reviewTokens.olive,
+    recommended: true,
   },
   {
     rating: 'easy',
     label: 'Easy',
-    icon: 'sentiment-very-satisfied',
+    icon: 'check',
     bg: reviewTokens.easyBg,
+    border: reviewTokens.easyBorder,
     text: reviewTokens.easyText,
-    iconColor: reviewTokens.easyText,
+    hintColor: reviewTokens.muted,
   },
 ];
 
@@ -87,11 +92,26 @@ export function RatingBar({review, onRate, disabled, contentWidth}: RatingBarPro
 
   return (
     <View>
-      <Text
-        className="text-center font-display-md text-heading mb-6"
-        style={{color: libraryTokens.ink}}>
-        How easy was this card?
-      </Text>
+      <View className="flex-row items-center justify-between" style={{marginBottom: 8, paddingHorizontal: 2}}>
+        <Text
+          style={{
+            fontFamily: fonts.bodyBold,
+            fontSize: 11,
+            letterSpacing: 0.8,
+            textTransform: 'uppercase',
+            color: reviewTokens.muted,
+          }}>
+          Rate your recall
+        </Text>
+        <Text
+          style={{
+            fontFamily: fonts.bodySemiBold,
+            fontSize: 11,
+            color: reviewTokens.muted,
+          }}>
+          Adjusts next review interval
+        </Text>
+      </View>
 
       <View className="flex-row" style={{gap: BUTTON_GAP}}>
         {RATING_OPTIONS.map(option => {
@@ -104,20 +124,41 @@ export function RatingBar({review, onRate, disabled, contentWidth}: RatingBarPro
             <Pressable
               key={option.rating}
               disabled={disabled}
-              className={`items-center justify-center py-3 px-1 rounded-xl active:scale-95 ${
+              className={`items-center justify-center active:scale-95 ${
                 disabled ? 'opacity-50' : ''
               }`}
-              style={{width: buttonWidth, backgroundColor: option.bg}}
+              style={{
+                width: buttonWidth,
+                borderRadius: 16,
+                backgroundColor: option.bg,
+                borderWidth: option.recommended ? 2 : 1,
+                borderColor: option.border,
+                paddingVertical: 10,
+                paddingHorizontal: 4,
+              }}
               onPress={() => onRate(option.rating)}
               accessibilityRole="button"
               accessibilityLabel={`Rate ${option.label}, next review in ${hint}`}>
-              <MaterialIcons name={option.icon} size={20} color={option.iconColor} />
+              <View className="flex-row items-center" style={{gap: 2}}>
+                {option.icon ? (
+                  <MaterialIcons name={option.icon} size={12} color={option.text} />
+                ) : null}
+                <Text
+                  style={{
+                    fontFamily: option.recommended ? fonts.display : fonts.bodyBold,
+                    fontSize: 12,
+                    color: option.text,
+                  }}>
+                  {option.label}
+                </Text>
+              </View>
               <Text
-                className="font-body-semibold text-sm mt-1"
-                style={{color: option.text}}>
-                {option.label}
-              </Text>
-              <Text className="text-[10px] mt-0.5 opacity-70" style={{color: option.text}}>
+                style={{
+                  fontFamily: option.recommended ? fonts.bodyBold : fonts.bodySemiBold,
+                  fontSize: 11,
+                  color: option.hintColor,
+                  marginTop: 2,
+                }}>
                 {hint}
               </Text>
             </Pressable>

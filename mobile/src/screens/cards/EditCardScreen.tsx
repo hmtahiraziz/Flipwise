@@ -1,6 +1,6 @@
 import {zodResolver} from '@hookform/resolvers/zod';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {useLayoutEffect, useState} from 'react';
+import {useLayoutEffect, useMemo, useState} from 'react';
 import {useForm} from 'react-hook-form';
 import {
   ActivityIndicator,
@@ -12,22 +12,63 @@ import {
   Text,
   View,
 } from 'react-native';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {CardEditorFields} from '../../components/card/CardEditorFields';
 import {EditCardFooter} from '../../components/card/EditCardFooter';
 import {GenerateReviewHeader} from '../../components/generate/GenerateReviewHeader';
 import {ProfileAvatar} from '../../components/profile/ProfileAvatar';
 import {toast} from '../../components/ui/Toast';
-import {colors, fonts} from '../../config/theme';
+import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 import {useAppUser} from '../../hooks/useAppUser';
 import {useCardMutations, useCards} from '../../hooks/useCards';
+import {useDeck} from '../../hooks/useDecks';
 import {useLibraryLayout} from '../../hooks/useLibraryLayout';
 import {getApiErrorMessage} from '../../lib/errors';
 import {useProfileNavigation} from '../../hooks/useProfileNavigation';
+import {useReviewQueue} from '../../hooks/useReviews';
 import {cardSchema, type CardFormValues} from '../../lib/schemas';
 import type {LibraryStackParamList} from '../../navigation/types';
 
 type Props = NativeStackScreenProps<LibraryStackParamList, 'EditCard'>;
+
+function retentionFromReview(item: {
+  review: {
+    easeFactor: number;
+    intervalDays: number;
+    repetitions: number;
+    nextReviewDate: string;
+  };
+} | undefined) {
+  if (!item) return null;
+  const {easeFactor, intervalDays, repetitions, nextReviewDate} = item.review;
+  const percent = Math.min(
+    98,
+    Math.max(12, Math.round((easeFactor - 1.3) * 40 + repetitions * 6)),
+  );
+  const label =
+    percent >= 80 ? 'Solid' : percent >= 55 ? 'Building' : 'Fragile';
+  const due = new Date(nextReviewDate);
+  const now = new Date();
+  const diffDays = Math.ceil(
+    (due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  const dueLabel =
+    diffDays <= 0
+      ? 'Review due now'
+      : `Review Due: ${due.toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+        })} (in ${diffDays} day${diffDays === 1 ? '' : 's'})`;
+
+  return {
+    percent,
+    label,
+    dueLabel,
+    repetitions,
+    intervalDays,
+  };
+}
 
 export function EditCardScreen({navigation, route}: Props) {
   const {deckId, cardId} = route.params;
@@ -35,14 +76,29 @@ export function EditCardScreen({navigation, route}: Props) {
   const layout = useLibraryLayout();
   const {user} = useAppUser();
   const {openProfile} = useProfileNavigation();
+  const {data: deck} = useDeck(deckId);
   const {data: cards, isLoading} = useCards(deckId);
+  const {data: queue = []} = useReviewQueue();
   const {createCard, updateCard, deleteCard} = useCardMutations(deckId);
   const [deleting, setDeleting] = useState(false);
+  const [mode, setMode] = useState<'new' | 'edit'>(
+    isEditing ? 'edit' : 'new',
+  );
+  const [showLivePreview, setShowLivePreview] = useState(true);
 
   const existing = cards?.find(card => card.id === cardId);
   const compact = layout.isNarrow;
   const tabClearance = layout.tabScrollBottomPadding;
-  const screenTitle = isEditing ? 'Edit card' : 'New card';
+  const deckTitle = deck?.title?.trim() || 'Deck';
+
+  const reviewItem = useMemo(
+    () => (cardId ? queue.find(item => item.card.id === cardId) : undefined),
+    [cardId, queue],
+  );
+  const retention = useMemo(
+    () => retentionFromReview(reviewItem),
+    [reviewItem],
+  );
 
   const {
     handleSubmit,
@@ -52,31 +108,50 @@ export function EditCardScreen({navigation, route}: Props) {
     formState: {errors, isSubmitting},
   } = useForm<CardFormValues>({
     resolver: zodResolver(cardSchema),
-    defaultValues: {question: '', answer: ''},
+    defaultValues: {
+      question: '',
+      answer: '',
+      explanation: '',
+      hint: '',
+      cardType: 'basic',
+    },
   });
 
   const question = watch('question');
   const answer = watch('answer');
+  const explanation = watch('explanation') ?? '';
+  const hint = watch('hint') ?? '';
+  const cardType = watch('cardType') ?? 'basic';
 
   useLayoutEffect(() => {
     if (existing) {
-      reset({question: existing.question, answer: existing.answer});
+      reset({
+        question: existing.question,
+        answer: existing.answer,
+        explanation: existing.explanation ?? '',
+        hint: existing.hint ?? '',
+        cardType: existing.cardType === 'cloze' ? 'cloze' : 'basic',
+      });
+      setMode('edit');
     }
   }, [existing, reset]);
 
   const onSubmit = handleSubmit(async values => {
+    const payload: CardFormValues = {
+      question: values.question.trim(),
+      answer: values.answer.trim(),
+      explanation: values.explanation?.trim() || undefined,
+      hint: values.hint?.trim() || undefined,
+      cardType: values.cardType ?? 'basic',
+    };
+    const saveAsEdit = mode === 'edit' && Boolean(cardId);
     try {
-      if (isEditing && cardId) {
-        await updateCard(cardId, {
-          question: values.question.trim(),
-          answer: values.answer.trim(),
-        });
+      if (saveAsEdit && cardId) {
+        await updateCard(cardId, payload);
       } else {
-        await createCard({
-          question: values.question.trim(),
-          answer: values.answer.trim(),
-        });
+        await createCard(payload);
       }
+      toast.success(saveAsEdit ? 'Card saved' : 'Card created');
       navigation.goBack();
     } catch (error) {
       toast.error('Could not save card', getApiErrorMessage(error));
@@ -102,6 +177,7 @@ export function EditCardScreen({navigation, route}: Props) {
     setDeleting(true);
     try {
       await deleteCard(cardId);
+      toast.success('Card deleted');
       navigation.goBack();
     } catch (error) {
       toast.error('Could not delete card', getApiErrorMessage(error));
@@ -110,29 +186,78 @@ export function EditCardScreen({navigation, route}: Props) {
     }
   };
 
+  const handleDuplicate = () => {
+    reset({
+      question: question,
+      answer: answer,
+      explanation: explanation,
+      hint: hint,
+      cardType: cardType,
+    });
+    setMode('new');
+    toast.info('Duplicated', 'Editing a copy — save to create a new card.');
+  };
+
+  const cardIndex = useMemo(() => {
+    if (!cardId || !cards?.length) return null;
+    const idx = cards.findIndex(c => c.id === cardId);
+    return idx >= 0 ? idx + 1 : null;
+  }, [cardId, cards]);
+
   const headerRight = (
-    <Pressable
-      onPress={openProfile}
-      hitSlop={8}
-      accessibilityLabel="Profile"
-      accessibilityRole="button"
-      className="active:opacity-80"
-      style={{
-        width: 40,
-        height: 40,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: libraryTokens.border,
-        overflow: 'hidden',
-        backgroundColor: colors.surfaceContainer,
-      }}>
-      <ProfileAvatar
-        name={user?.name}
-        email={user?.email}
-        imageUrl={user?.avatarUrl}
-        size={40}
-      />
-    </Pressable>
+    <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+      <Pressable
+        onPress={() => setShowLivePreview(v => !v)}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel="Toggle preview"
+        className="active:opacity-80"
+        style={{
+          minHeight: 40,
+          paddingHorizontal: 10,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
+          borderRadius: 999,
+          backgroundColor: libraryTokens.surfaceContainerLow,
+        }}>
+        <MaterialIcons
+          name="visibility"
+          size={18}
+          color={libraryTokens.muted}
+        />
+        <Text
+          style={{
+            fontFamily: fonts.bodySemiBold,
+            fontSize: 12,
+            color: libraryTokens.muted,
+          }}>
+          Preview
+        </Text>
+      </Pressable>
+      <Pressable
+        onPress={openProfile}
+        hitSlop={8}
+        accessibilityLabel="Profile"
+        accessibilityRole="button"
+        className="active:opacity-80"
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 999,
+          overflow: 'hidden',
+          backgroundColor: libraryTokens.primary,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <ProfileAvatar
+          name={user?.name}
+          email={user?.email}
+          imageUrl={user?.avatarUrl}
+          size={32}
+        />
+      </Pressable>
+    </View>
   );
 
   if (isEditing && isLoading) {
@@ -173,7 +298,12 @@ export function EditCardScreen({navigation, route}: Props) {
               borderRadius: 12,
               alignItems: 'center',
             }}>
-            <Text style={{fontFamily: fonts.bodySemiBold, fontSize: 16, color: libraryTokens.ink}}>
+            <Text
+              style={{
+                fontFamily: fonts.bodySemiBold,
+                fontSize: 16,
+                color: libraryTokens.ink,
+              }}>
               Go back
             </Text>
           </Pressable>
@@ -184,11 +314,13 @@ export function EditCardScreen({navigation, route}: Props) {
 
   return (
     <View className="flex-1" style={{backgroundColor: libraryTokens.background}}>
-      <GenerateReviewHeader
-        onBack={() => navigation.goBack()}
-        title={screenTitle}
-        right={headerRight}
-      />
+        <GenerateReviewHeader
+          onBack={() => navigation.goBack()}
+          title={mode === 'edit' ? 'Edit Card' : 'New Card'}
+          subtitle={`Deck: ${deckTitle}`}
+          closeIcon
+          right={headerRight}
+        />
 
       <KeyboardAvoidingView
         className="flex-1"
@@ -198,73 +330,194 @@ export function EditCardScreen({navigation, route}: Props) {
           className="flex-1"
           contentContainerStyle={{
             paddingHorizontal: layout.horizontalPadding,
-            paddingTop: 24,
+            paddingTop: 12,
             paddingBottom: 24,
             maxWidth: libraryTokens.contentMaxWidthWide,
             width: '100%',
             alignSelf: 'center',
+            gap: 20,
           }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          <View style={{marginBottom: layout.sectionGap}}>
-            <Text
+          {/* Mode switcher + tools */}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+            }}>
+            <View
               style={{
-                fontFamily: fonts.bodySemiBold,
-                fontSize: 12,
-                letterSpacing: 0.6,
-                textTransform: 'uppercase',
-                color: colors.muted,
-                marginBottom: 4,
+                flexDirection: 'row',
+                padding: 4,
+                borderRadius: 999,
+                backgroundColor: libraryTokens.surfaceContainerLow,
               }}>
-              {isEditing ? 'Editing' : 'Creating'}
-            </Text>
-            <Text
-              style={{
-                fontFamily: fonts.display,
-                fontSize: compact ? 28 : 32,
-                lineHeight: compact ? 36 : 40,
-                letterSpacing: -0.64,
-                fontWeight: '700',
-                color: colors.onSurface,
-              }}>
-              {isEditing ? 'Update card' : 'Add a card'}
-            </Text>
-            <Text
-              style={{
-                fontFamily: fonts.body,
-                fontSize: 16,
-                lineHeight: 24,
-                color: colors.muted,
-                marginTop: 4,
-              }}>
-              {isEditing
-                ? 'Edit the question or answer below'
-                : 'Add a flashcard to this deck'}
-            </Text>
+              <Pressable
+                onPress={() => {
+                  if (isEditing) {
+                    reset({
+                      question: '',
+                      answer: '',
+                      explanation: '',
+                      hint: '',
+                      cardType: 'basic',
+                    });
+                  }
+                  setMode('new');
+                }}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  backgroundColor:
+                    mode === 'new' ? brandColors.surface : 'transparent',
+                }}>
+                <Text
+                  style={{
+                    fontFamily:
+                      mode === 'new' ? fonts.bodyBold : fonts.bodySemiBold,
+                    fontSize: 12,
+                    color:
+                      mode === 'new' ? libraryTokens.ink : libraryTokens.muted,
+                  }}>
+                  New Card
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (existing) {
+                    reset({
+                      question: existing.question,
+                      answer: existing.answer,
+                      explanation: existing.explanation ?? '',
+                      hint: existing.hint ?? '',
+                      cardType:
+                        existing.cardType === 'cloze' ? 'cloze' : 'basic',
+                    });
+                    setMode('edit');
+                  }
+                }}
+                disabled={!isEditing}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  backgroundColor:
+                    mode === 'edit' ? brandColors.surface : 'transparent',
+                  opacity: isEditing ? 1 : 0.45,
+                }}>
+                {mode === 'edit' ? (
+                  <View
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: libraryTokens.primaryContainer,
+                    }}
+                  />
+                ) : null}
+                <Text
+                  style={{
+                    fontFamily:
+                      mode === 'edit' ? fonts.bodyBold : fonts.bodySemiBold,
+                    fontSize: 12,
+                    color:
+                      mode === 'edit' ? libraryTokens.ink : libraryTokens.muted,
+                  }}>
+                  Edit Card{cardIndex != null ? ` #${cardIndex}` : ''}
+                </Text>
+              </Pressable>
+            </View>
+
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
+              <Pressable
+                accessibilityLabel="Duplicate card"
+                onPress={handleDuplicate}
+                className="active:opacity-80"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 999,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: libraryTokens.surfaceContainerLow,
+                }}>
+                <MaterialIcons
+                  name="content-copy"
+                  size={20}
+                  color={libraryTokens.muted}
+                />
+              </Pressable>
+              {isEditing ? (
+                <Pressable
+                  accessibilityLabel="Delete card"
+                  onPress={confirmDelete}
+                  disabled={deleting}
+                  className="active:opacity-80"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 999,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(255, 218, 214, 0.45)',
+                  }}>
+                  <MaterialIcons
+                    name="delete"
+                    size={20}
+                    color={libraryTokens.error}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
           </View>
 
           <CardEditorFields
             question={question}
             answer={answer}
+            explanation={explanation}
+            hint={hint}
+            cardType={cardType}
             onQuestionChange={value =>
-              setValue('question', value, {shouldValidate: true, shouldDirty: true})
+              setValue('question', value, {
+                shouldValidate: true,
+                shouldDirty: true,
+              })
             }
             onAnswerChange={value =>
-              setValue('answer', value, {shouldValidate: true, shouldDirty: true})
+              setValue('answer', value, {
+                shouldValidate: true,
+                shouldDirty: true,
+              })
+            }
+            onExplanationChange={value =>
+              setValue('explanation', value, {shouldDirty: true})
+            }
+            onHintChange={value => setValue('hint', value, {shouldDirty: true})}
+            onCardTypeChange={value =>
+              setValue('cardType', value, {shouldDirty: true})
             }
             questionError={errors.question?.message}
             answerError={errors.answer?.message}
+            retention={retention}
+            showPreview={showLivePreview}
           />
         </ScrollView>
       </KeyboardAvoidingView>
 
       <View style={{paddingBottom: tabClearance}}>
         <EditCardFooter
-          isEditing={isEditing}
+          isEditing={isEditing && mode === 'edit'}
           saving={isSubmitting}
           deleting={deleting}
           compact={compact}
           onSave={onSubmit}
+          onCancel={() => navigation.goBack()}
           onDelete={isEditing ? confirmDelete : undefined}
         />
       </View>

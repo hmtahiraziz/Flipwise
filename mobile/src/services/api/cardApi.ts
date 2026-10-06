@@ -90,6 +90,28 @@ export async function importUrl(
   return data;
 }
 
+export async function importScanImage(
+  deckId: string,
+  file: {uri: string; name: string; type?: string},
+): Promise<ImportSourceResponse> {
+  const formData = new FormData();
+  formData.append('file', {
+    uri: file.uri,
+    name: file.name,
+    type: file.type ?? 'image/jpeg',
+  } as unknown as Blob);
+
+  const {data} = await apiClient.post<ImportSourceResponse>(
+    `/api/decks/${deckId}/cards/import/image`,
+    formData,
+    {
+      timeout: IMPORT_TIMEOUT_MS,
+      headers: {'Content-Type': 'multipart/form-data'},
+    },
+  );
+  return data;
+}
+
 export async function updateCard(
   cardId: string,
   input: Partial<CardFormValues>,

@@ -1,8 +1,7 @@
 import {Pressable, Text, View, useWindowDimensions} from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {fonts} from '../../config/theme';
-import {progressTokens} from '../../config/progressTokens';
+import {brandColors, fonts, layout} from '../../config/theme';
 import {libraryNavShadow, libraryTokens} from '../../config/libraryTokens';
 
 export type TabItem = {
@@ -20,11 +19,12 @@ type FloatingTabBarProps = {
 export function FloatingTabBar({tabs, activeKey, onTabPress}: FloatingTabBarProps) {
   const insets = useSafeAreaInsets();
   const {width} = useWindowDimensions();
-  const barWidth = Math.min(width * 0.9, 448);
+  const barWidth = Math.min(width - 32, 448);
 
   return (
     <View
       className="absolute left-0 right-0 items-center"
+      pointerEvents="box-none"
       style={{
         bottom: Math.max(insets.bottom, 0) + libraryTokens.navBarBottomInset,
         paddingTop: libraryTokens.navBarTopInset,
@@ -33,9 +33,9 @@ export function FloatingTabBar({tabs, activeKey, onTabPress}: FloatingTabBarProp
         className="flex-row items-center justify-between rounded-full"
         style={{
           width: barWidth,
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          backgroundColor: brandColors.surface,
           borderWidth: 1,
-          borderColor: progressTokens.borderWarm,
+          borderColor: brandColors.border,
           paddingHorizontal: libraryTokens.navBarPadding,
           paddingVertical: libraryTokens.navBarPadding,
           ...libraryNavShadow,
@@ -47,19 +47,22 @@ export function FloatingTabBar({tabs, activeKey, onTabPress}: FloatingTabBarProp
               key={tab.key}
               accessibilityRole="tab"
               accessibilityState={{selected: isActive}}
-              className="flex-1 flex-col items-center justify-center rounded-full active:scale-95"
+              accessibilityLabel={tab.label}
+              className="flex-1 flex-col items-center justify-center rounded-full"
               style={{
-                paddingHorizontal: libraryTokens.navTabPaddingX,
+                minHeight: layout.minTouchTarget,
+                paddingHorizontal: 8,
                 paddingVertical: libraryTokens.navTabPaddingY,
-                backgroundColor: isActive ? progressTokens.brandGreen : 'transparent',
+                backgroundColor: isActive ? brandColors.lime : 'transparent',
               }}
               onPress={() => onTabPress(tab.key)}>
               <MaterialIcons
                 name={tab.icon}
                 size={libraryTokens.navIconSize}
-                color={isActive ? progressTokens.ink : progressTokens.mutedWarm}
+                color={isActive ? brandColors.charcoal : brandColors.muted}
               />
               <Text
+                numberOfLines={1}
                 style={{
                   fontFamily: fonts.bodySemiBold,
                   fontSize: libraryTokens.navLabelSize,
@@ -67,7 +70,7 @@ export function FloatingTabBar({tabs, activeKey, onTabPress}: FloatingTabBarProp
                   letterSpacing: 0.5,
                   marginTop: 2,
                   textTransform: 'uppercase',
-                  color: isActive ? progressTokens.ink : progressTokens.mutedWarm,
+                  color: isActive ? brandColors.charcoal : brandColors.muted,
                 }}>
                 {tab.label}
               </Text>

@@ -18,10 +18,14 @@ export async function fetchReviewQueue(
 export async function rateCard(
   cardId: string,
   rating: EaseRating,
+  durationMs?: number,
 ): Promise<RateCardResponse> {
   const {data} = await apiClient.post<RateCardResponse>(
     `/api/reviews/${cardId}/rate`,
-    {rating},
+    {
+      rating,
+      ...(durationMs !== undefined ? {durationMs} : {}),
+    },
   );
   return data;
 }

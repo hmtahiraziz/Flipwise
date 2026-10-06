@@ -8,6 +8,7 @@ import type {DeckFormValues} from '../../lib/schemas';
 
 export type UpdateDeckInput = Partial<DeckFormValues> & {
   isArchived?: boolean;
+  isFavorite?: boolean;
 };
 
 export async function fetchDecks(): Promise<Deck[]> {

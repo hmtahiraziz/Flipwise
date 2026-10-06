@@ -9,7 +9,28 @@ export type AuthStackParamList = {
   ForgotPassword: {email?: string};
 };
 
-export type GenerateSourceType = 'topic' | 'notes';
+export type GenerateSourceType = 'topic' | 'notes' | 'pdf' | 'scan';
+
+/** Shared profile / settings route names used by Library and Home stacks. */
+export type ProfileRoutesParamList = {
+  ProfileHome: undefined;
+  Settings: undefined;
+  EditProfile: undefined;
+  PrivacyPolicy: undefined;
+  TermsOfService: undefined;
+  DataHandling: undefined;
+};
+
+export type HomeStackParamList = {
+  HomeHome: undefined;
+  StudyPlanner: undefined;
+  ProfileHome: undefined;
+  Settings: undefined;
+  EditProfile: undefined;
+  PrivacyPolicy: undefined;
+  TermsOfService: undefined;
+  DataHandling: undefined;
+};
 
 export type LibraryStackParamList = {
   DeckList: undefined;
@@ -39,12 +60,15 @@ export type ReviewStackParamList = {
 
 export type ProgressStackParamList = {
   ProgressHome: undefined;
+  StudyPlanner: undefined;
+  QuizSession: {deckId: string};
 };
 
 export type MainTabParamList = {
+  Home: undefined | {screen?: keyof HomeStackParamList; params?: object};
   Library: undefined | {screen?: keyof LibraryStackParamList; params?: object};
   Review: undefined | {screen?: keyof ReviewStackParamList; params?: object};
-  Progress: undefined;
+  Progress: undefined | {screen?: keyof ProgressStackParamList; params?: object};
 };
 
 /** @deprecated Use LibraryStackParamList — kept for migration */
@@ -57,6 +81,7 @@ declare global {
     interface RootParamList
       extends OnboardingStackParamList,
         AuthStackParamList,
+        HomeStackParamList,
         LibraryStackParamList,
         ReviewStackParamList,
         ProgressStackParamList,

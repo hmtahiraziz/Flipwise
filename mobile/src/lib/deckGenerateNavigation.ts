@@ -4,7 +4,10 @@ import type {
   LibraryStackParamList,
 } from '../navigation/types';
 
-type LibraryNavigation = NativeStackNavigationProp<LibraryStackParamList>;
+type LibraryNavigation = Pick<
+  NativeStackNavigationProp<LibraryStackParamList>,
+  'navigate'
+>;
 
 export function navigateToGenerateCards(
   navigation: LibraryNavigation,

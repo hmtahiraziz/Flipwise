@@ -6,6 +6,7 @@ import {
   fetchCards,
   generateCards,
   importPdf,
+  importScanImage,
   importUrl,
   updateCard,
 } from '../services/api/cardApi';
@@ -42,6 +43,13 @@ export function useCardMutations(deckId: string) {
     },
     importPdf: async (file: {uri: string; name: string; type?: string}) => {
       return importPdf(deckId, file);
+    },
+    importScanImage: async (file: {
+      uri: string;
+      name: string;
+      type?: string;
+    }) => {
+      return importScanImage(deckId, file);
     },
     importUrl: async (url: string) => {
       return importUrl(deckId, url);

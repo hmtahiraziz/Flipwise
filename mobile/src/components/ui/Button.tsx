@@ -5,7 +5,7 @@ import {
   Text,
   type PressableProps,
 } from 'react-native';
-import {colors} from '../../config/theme';
+import {colors, fonts, layout, typography} from '../../config/theme';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -14,20 +14,21 @@ type ButtonProps = PressableProps & {
   variant?: ButtonVariant;
   loading?: boolean;
   icon?: ReactNode;
+  className?: string;
 };
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-primary-container border border-primary border-b-2',
+  primary: 'bg-primary-container',
   secondary: 'bg-card border border-border',
   ghost: 'bg-transparent',
   danger: 'bg-danger',
 };
 
-const labelClasses: Record<ButtonVariant, string> = {
-  primary: 'text-on-primary-container',
-  secondary: 'text-text',
-  ghost: 'text-muted',
-  danger: 'text-white',
+const labelColor: Record<ButtonVariant, string> = {
+  primary: colors.onPrimaryContainer,
+  secondary: colors.onSurface,
+  ghost: colors.muted,
+  danger: colors.white,
 };
 
 export function Button({
@@ -37,13 +38,22 @@ export function Button({
   disabled,
   icon,
   className,
+  style,
   ...props
-}: ButtonProps & {className?: string}) {
+}: ButtonProps) {
   const isDisabled = disabled || loading;
 
   return (
     <Pressable
-      className={`rounded-button py-4 px-5 flex-row items-center justify-center active:opacity-90 ${variantClasses[variant]} ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`}
+      accessibilityRole="button"
+      className={`rounded-button px-5 flex-row items-center justify-center ${variantClasses[variant]} ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`}
+      style={({pressed}) => [
+        {
+          minHeight: layout.ctaHeight,
+          transform: [{scale: pressed && !isDisabled ? 0.98 : 1}],
+        },
+        typeof style === 'function' ? style({pressed}) : style,
+      ]}
       disabled={isDisabled}
       {...props}>
       {loading ? (
@@ -51,14 +61,21 @@ export function Button({
           size="small"
           color={
             variant === 'secondary' || variant === 'ghost'
-              ? colors.text
+              ? colors.onSurface
               : colors.onPrimaryContainer
           }
         />
       ) : (
         <>
           {icon}
-          <Text className={`font-semibold text-body ${labelClasses[variant]}`}>
+          <Text
+            style={{
+              fontFamily: fonts.bodySemiBold,
+              fontSize: typography.labelLg.fontSize,
+              lineHeight: typography.labelLg.lineHeight,
+              color: labelColor[variant],
+              marginLeft: icon ? 8 : 0,
+            }}>
             {label}
           </Text>
         </>

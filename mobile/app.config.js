@@ -6,10 +6,26 @@ module.exports = {
   version: '1.0.0',
   android: {
     package: 'com.flipwise.app',
-    // Internet is declared in AndroidManifest. Document picker uses the
-    // system file picker (SAF) and does not need broad storage permissions.
+    permissions: ['CAMERA', 'READ_MEDIA_IMAGES'],
   },
   ios: {
     bundleIdentifier: 'com.flipwise.app',
+    infoPlist: {
+      NSCameraUsageDescription:
+        'Flipwise uses the camera to scan handwritten or printed study notes.',
+      NSPhotoLibraryUsageDescription:
+        'Flipwise accesses your photos so you can import scanned notes.',
+    },
   },
+  plugins: [
+    [
+      'expo-image-picker',
+      {
+        photosPermission:
+          'Allow Flipwise to access your photos for note scanning.',
+        cameraPermission:
+          'Allow Flipwise to use your camera to scan study notes.',
+      },
+    ],
+  ],
 };

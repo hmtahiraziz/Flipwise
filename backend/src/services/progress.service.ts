@@ -41,9 +41,15 @@ export type ProgressHistoryDay = {
   minutesStudied: number;
 };
 
-export async function recordStudyActivity(userId: string): Promise<void> {
+export async function recordStudyActivity(
+  userId: string,
+  minutesStudied = 0,
+): Promise<void> {
   const db = getDb();
   const today = todayDateString();
+  const minutesIncrement = Number.isFinite(minutesStudied)
+    ? Math.max(0, Math.round(minutesStudied))
+    : 0;
 
   await db
     .insert(studySessions)
@@ -51,11 +57,13 @@ export async function recordStudyActivity(userId: string): Promise<void> {
       userId,
       sessionDate: today,
       cardsReviewed: 1,
+      minutesStudied: minutesIncrement,
     })
     .onConflictDoUpdate({
       target: [studySessions.userId, studySessions.sessionDate],
       set: {
         cardsReviewed: sql`${studySessions.cardsReviewed} + 1`,
+        minutesStudied: sql`${studySessions.minutesStudied} + ${minutesIncrement}`,
       },
     });
 

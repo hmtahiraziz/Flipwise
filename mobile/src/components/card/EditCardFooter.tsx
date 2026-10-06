@@ -1,4 +1,5 @@
 import {ActivityIndicator, Pressable, Text, View} from 'react-native';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 
@@ -7,127 +8,76 @@ type EditCardFooterProps = {
   saving?: boolean;
   deleting?: boolean;
   onSave: () => void;
+  onCancel?: () => void;
   onDelete?: () => void;
   compact?: boolean;
 };
 
-const BUTTON_HEIGHT = 56;
+const BUTTON_HEIGHT = 52;
 
-/** Edit card footer — Delete + Save matching app design language. */
+/** Stitch Edit Card footer — Cancel + Save Card. */
 export function EditCardFooter({
   isEditing,
   saving = false,
   deleting = false,
   onSave,
-  onDelete,
+  onCancel,
+  onDelete: _onDelete,
   compact,
 }: EditCardFooterProps) {
   const busy = saving || deleting;
   const saveLabel = isEditing
     ? compact
       ? 'Save'
-      : 'Save changes'
+      : 'Save Card'
     : compact
-      ? 'Add card'
-      : 'Add card';
-
-  if (!isEditing) {
-    return (
-      <View
-        style={{
-          paddingHorizontal: libraryTokens.containerPadding,
-          paddingTop: 16,
-          paddingBottom: 8,
-          backgroundColor: libraryTokens.background,
-          borderTopWidth: 1,
-          borderTopColor: libraryTokens.borderSubtle,
-        }}>
-        <Pressable
-          onPress={onSave}
-          disabled={busy}
-          accessibilityRole="button"
-          accessibilityLabel={saveLabel}
-          className="active:opacity-90"
-          style={{
-            height: BUTTON_HEIGHT,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            borderRadius: 12,
-            backgroundColor: libraryTokens.primaryContainer,
-            borderBottomWidth: 4,
-            borderBottomColor: '#ACD60E',
-            opacity: busy ? 0.75 : 1,
-            maxWidth: libraryTokens.contentMaxWidthWide,
-            width: '100%',
-            alignSelf: 'center',
-          }}>
-          {saving ? (
-            <ActivityIndicator size="small" color={libraryTokens.onPrimaryContainer} />
-          ) : null}
-          <Text
-            style={{
-              fontFamily: fonts.bodySemiBold,
-              fontSize: 16,
-              color: libraryTokens.onPrimaryContainer,
-            }}>
-            {saveLabel}
-          </Text>
-        </Pressable>
-      </View>
-    );
-  }
+      ? 'Add'
+      : 'Save Card';
 
   return (
     <View
       style={{
         paddingHorizontal: libraryTokens.containerPadding,
-        paddingTop: 16,
+        paddingTop: 12,
         paddingBottom: 8,
-        backgroundColor: libraryTokens.background,
+        backgroundColor: 'rgba(249, 250, 246, 0.92)',
         borderTopWidth: 1,
         borderTopColor: libraryTokens.borderSubtle,
       }}>
       <View
-        className="flex-row"
         style={{
-          gap: libraryTokens.elementGap,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
           maxWidth: libraryTokens.contentMaxWidthWide,
           width: '100%',
           alignSelf: 'center',
         }}>
         <Pressable
-          onPress={() => onDelete?.()}
-          disabled={busy || !onDelete}
+          onPress={onCancel}
+          disabled={busy || !onCancel}
           accessibilityRole="button"
-          accessibilityLabel="Delete card"
-          className="active:scale-[0.98]"
+          accessibilityLabel="Cancel"
+          className="active:opacity-90"
           style={{
             flex: 1,
-            height: BUTTON_HEIGHT,
-            flexDirection: 'row',
+            minHeight: 48,
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 6,
-            borderRadius: 12,
-            backgroundColor: libraryTokens.errorMuted,
+            borderRadius: 14,
+            backgroundColor: libraryTokens.surface,
             borderWidth: 1,
-            borderColor: 'rgba(239, 68, 68, 0.25)',
-            opacity: busy ? 0.5 : 1,
+            borderColor: libraryTokens.border,
+            opacity: busy ? 0.6 : 1,
           }}>
-          {deleting ? (
-            <ActivityIndicator size="small" color={libraryTokens.error} />
-          ) : (
-            <Text
-              style={{
-                fontFamily: fonts.bodySemiBold,
-                fontSize: compact ? 14 : 16,
-                color: libraryTokens.error,
-              }}>
-              Delete
-            </Text>
-          )}
+          <Text
+            style={{
+              fontFamily: fonts.bodySemiBold,
+              fontSize: 14,
+              color: libraryTokens.ink,
+            }}>
+            Cancel
+          </Text>
         </Pressable>
 
         <Pressable
@@ -135,33 +85,35 @@ export function EditCardFooter({
           disabled={busy}
           accessibilityRole="button"
           accessibilityLabel={saveLabel}
-          className="active:opacity-90"
+          className="active:opacity-95"
           style={{
-            flex: 1,
-            height: BUTTON_HEIGHT,
+            flex: 2,
+            minHeight: BUTTON_HEIGHT,
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
             gap: 8,
-            paddingHorizontal: 12,
-            borderRadius: 12,
+            borderRadius: 14,
             backgroundColor: libraryTokens.primaryContainer,
-            borderBottomWidth: 4,
-            borderBottomColor: '#ACD60E',
             opacity: busy ? 0.75 : 1,
           }}>
           {saving ? (
-            <ActivityIndicator size="small" color={libraryTokens.onPrimaryContainer} />
-          ) : null}
+            <ActivityIndicator
+              size="small"
+              color={libraryTokens.onPrimaryContainer}
+            />
+          ) : (
+            <MaterialIcons
+              name="check"
+              size={20}
+              color={libraryTokens.onPrimaryContainer}
+            />
+          )}
           <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.82}
             style={{
-              fontFamily: fonts.bodySemiBold,
-              fontSize: compact ? 14 : 16,
+              fontFamily: fonts.bodyBold,
+              fontSize: 14,
               color: libraryTokens.onPrimaryContainer,
-              flexShrink: 1,
             }}>
             {saveLabel}
           </Text>
@@ -171,4 +123,4 @@ export function EditCardFooter({
   );
 }
 
-export const EDIT_CARD_FOOTER_HEIGHT = BUTTON_HEIGHT + 16 + 8 + 1;
+export const EDIT_CARD_FOOTER_HEIGHT = BUTTON_HEIGHT + 12 + 8 + 1;

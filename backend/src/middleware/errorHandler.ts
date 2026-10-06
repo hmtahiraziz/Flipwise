@@ -31,6 +31,8 @@ export function errorHandler(
     });
     return;
   }
+
   console.error(err);
+  // Never send stack traces to clients (including production).
   res.status(500).json({ error: "Internal server error" });
 }

@@ -1,5 +1,5 @@
 import {Image, Text, View} from 'react-native';
-import {colors} from '../../config/theme';
+import {colors, fonts} from '../../config/theme';
 
 type ProfileAvatarProps = {
   name?: string | null;
@@ -59,7 +59,7 @@ export function ProfileAvatar({
       }}>
       <Text
         style={{
-          fontFamily: 'Manrope-Bold',
+          fontFamily: fonts.displayMedium,
           fontSize,
           color: variant === 'brand' ? brandText : colors.text,
         }}>

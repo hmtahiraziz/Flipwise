@@ -1,68 +1,57 @@
-/** Design tokens for the My Library screen — single source of truth for pixel-match. */
+/** Library / nav tokens aligned to Electric Repetition. */
+import {brandColors, elevation, layout, lightColors} from './theme';
+
 export const libraryTokens = {
-  background: '#F5F6F3',
-  surface: '#FFFFFF',
-  ink: '#1A1A1A',
-  muted: '#6B7280',
-  mutedSubtitle: '#6B7280',
-  border: '#E5E7EB',
-  borderSubtle: 'rgba(229, 231, 235, 0.85)',
-  primary: '#516600',
-  primaryContainer: '#C6F135',
-  onPrimaryContainer: '#556B00',
-  secondaryContainer: '#DFE0DD',
-  onSecondaryContainer: '#616361',
-  tertiary: '#476178',
-  tertiaryContainer: '#C9E4FF',
-  error: '#EF4444',
-  errorMuted: '#FEF2F2',
-  errorContainer: '#FFDAD6',
-  warning: '#F59E0B',
-  warningBar: '#FBBF24',
-  surfaceContainerLow: '#F2F3F7',
-  fabDark: '#1A1A1A',
+  background: brandColors.background,
+  surface: brandColors.surface,
+  ink: brandColors.charcoal,
+  muted: brandColors.muted,
+  mutedSubtitle: brandColors.muted,
+  border: brandColors.border,
+  borderSubtle: 'rgba(228, 231, 220, 0.85)',
+  primary: lightColors.primary,
+  primaryContainer: brandColors.lime,
+  onPrimaryContainer: brandColors.charcoal,
+  secondaryContainer: lightColors.secondaryContainer,
+  onSecondaryContainer: lightColors.onSecondaryContainer,
+  tertiary: lightColors.tertiary,
+  tertiaryContainer: brandColors.paleLime,
+  error: brandColors.dangerIcon,
+  errorMuted: brandColors.dangerBg,
+  errorContainer: lightColors.errorContainer,
+  warning: lightColors.warning,
+  warningBar: lightColors.warningBar,
+  surfaceContainerLow: lightColors.surfaceContainerLow,
+  fabDark: brandColors.charcoal,
   fabSize: 56,
-  navBarBottomInset: 8,
+  navBarBottomInset: 16,
   navBarTopInset: 8,
   navBarPadding: 6,
-  navTabPaddingX: 20,
-  navTabPaddingY: 6,
+  navTabPaddingX: 12,
+  navTabPaddingY: 8,
   navIconSize: 22,
   navLabelSize: 10,
-  navBarClearance: 88,
-  minTapTarget: 44,
-  containerPadding: 20,
-  sectionGap: 32,
+  navBarClearance: layout.tabBarClearance,
+  minTapTarget: layout.minTouchTarget,
+  containerPadding: 16,
+  sectionGap: 24,
   elementGap: 12,
-  cardRadius: 24,
-  contentMaxWidth: 480,
-  contentMaxWidthWide: 672,
+  cardRadius: 20,
+  contentMaxWidth: layout.contentMaxWidthPhone,
+  contentMaxWidthWide: layout.contentMaxWidthTablet,
 } as const;
 
-/** Soft card shadow — matches reference: 0 4px 12px rgba(0,0,0,0.05) */
-export const libraryCardShadow = {
-  shadowColor: '#000000',
-  shadowOffset: {width: 0, height: 4},
-  shadowOpacity: 0.05,
-  shadowRadius: 12,
-  elevation: 2,
-} as const;
+export const libraryCardShadow = elevation.tier1;
 
 export const libraryFabShadow = {
-  shadowColor: '#000000',
+  shadowColor: brandColors.charcoal,
   shadowOffset: {width: 0, height: 10},
-  shadowOpacity: 0.22,
+  shadowOpacity: 0.18,
   shadowRadius: 20,
   elevation: 12,
 } as const;
 
-export const libraryNavShadow = {
-  shadowColor: '#000000',
-  shadowOffset: {width: 0, height: 4},
-  shadowOpacity: 0.08,
-  shadowRadius: 20,
-  elevation: 6,
-} as const;
+export const libraryNavShadow = elevation.tier2;
 
 export type DeckStatusVariant = 'excellent' | 'active' | 'new';
 
@@ -89,41 +78,22 @@ export function statusBadgeStyle(variant: DeckStatusVariant) {
   switch (variant) {
     case 'excellent':
       return {
-        background: libraryTokens.primaryContainer,
-        text: libraryTokens.onPrimaryContainer,
-        border: false,
+        backgroundColor: brandColors.paleLime,
+        color: brandColors.olive,
       };
-    case 'new':
+    case 'active':
       return {
-        background: libraryTokens.errorMuted,
-        text: libraryTokens.error,
-        border: true,
+        backgroundColor: brandColors.lime,
+        color: brandColors.charcoal,
       };
     default:
       return {
-        background: libraryTokens.secondaryContainer,
-        text: libraryTokens.onSecondaryContainer,
-        border: false,
+        backgroundColor: lightColors.surfaceContainer,
+        color: brandColors.muted,
       };
   }
 }
 
 export function statusIconStyle(variant: DeckStatusVariant) {
-  switch (variant) {
-    case 'excellent':
-      return {
-        background: 'rgba(198, 241, 53, 0.1)',
-        icon: libraryTokens.primary,
-      };
-    case 'new':
-      return {
-        background: 'rgba(255, 218, 214, 0.4)',
-        icon: libraryTokens.error,
-      };
-    default:
-      return {
-        background: 'rgba(201, 228, 255, 0.3)',
-        icon: libraryTokens.tertiary,
-      };
-  }
+  return statusBadgeStyle(variant);
 }

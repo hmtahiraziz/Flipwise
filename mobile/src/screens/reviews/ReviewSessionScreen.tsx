@@ -1,7 +1,11 @@
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  AppState,
+  type AppStateStatus,
+  Pressable,
   ScrollView,
   Text,
   useWindowDimensions,
@@ -9,6 +13,7 @@ import {
 } from 'react-native';
 import Animated, {FadeInDown} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {
   FlipCard,
   ReviewBackground,
@@ -16,29 +21,70 @@ import {
 } from '../../components/review/FlipCard';
 import {RatingBar} from '../../components/review/RatingBar';
 import {ReviewSessionHeader} from '../../components/review/ReviewSessionHeader';
-import {LibraryProfileButton} from '../../components/library/LibraryHeader';
-import {ProfileAvatar} from '../../components/profile/ProfileAvatar';
 import {Button} from '../../components/ui/Button';
 import {toast} from '../../components/ui/Toast';
 import {libraryTokens} from '../../config/libraryTokens';
-import {useAppUser} from '../../hooks/useAppUser';
-import {useProfileNavigation} from '../../hooks/useProfileNavigation';
-import {getApiErrorMessage} from '../../lib/errors';
+import {brandColors, fonts} from '../../config/theme';
+import {reviewTokens} from '../../config/reviewTokens';
+import {getApiErrorMessage, isNetworkError} from '../../lib/errors';
 import {useReviewMutations, useReviewQueue} from '../../hooks/useReviews';
 import type {ReviewStackParamList} from '../../navigation/types';
+import {
+  localDataStorage,
+  type UnfinishedSession,
+} from '../../storage/localDataStorage';
+import {useTheme} from '../../theme/ThemeProvider';
 import type {EaseRating, ReviewQueueItem} from '../../types/api';
 
 type Props = NativeStackScreenProps<ReviewStackParamList, 'ReviewSession'>;
 
-const TAB_BAR_CLEARANCE = 100;
+type UndoSnapshot = {
+  queue: ReviewQueueItem[];
+  index: number;
+  flipped: boolean;
+};
+
+function sessionMatchesDeck(
+  saved: UnfinishedSession,
+  deckId?: string,
+): boolean {
+  return (saved.deckId ?? undefined) === (deckId ?? undefined);
+}
+
+function buildResumedQueue(
+  queue: ReviewQueueItem[],
+  saved: UnfinishedSession,
+): {queue: ReviewQueueItem[]; index: number} {
+  const byId = new Map(queue.map(item => [item.card.id, item]));
+  const ordered: ReviewQueueItem[] = [];
+
+  for (const id of saved.cardIds) {
+    const item = byId.get(id);
+    if (item) {
+      ordered.push(item);
+      byId.delete(id);
+    }
+  }
+
+  for (const item of byId.values()) {
+    ordered.push(item);
+  }
+
+  const maxIndex = Math.max(ordered.length - 1, 0);
+  const index = Math.min(Math.max(saved.index, 0), maxIndex);
+  return {queue: ordered, index};
+}
+
+function createSessionId(): string {
+  return `session-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 export function ReviewSessionScreen({navigation, route}: Props) {
   const {width} = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const maxContentWidth = Math.min(width - 40, 448);
   const deckId = route.params?.deckId;
-  const {user} = useAppUser();
-  const {openProfile} = useProfileNavigation();
+  const {reducedMotion} = useTheme();
   const {data: queue = [], isLoading, error, refetch} = useReviewQueue(deckId);
   const {rateCard, isRating} = useReviewMutations(deckId);
 
@@ -46,19 +92,163 @@ export function ReviewSessionScreen({navigation, route}: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [completed, setCompleted] = useState(false);
-  const [sessionStart] = useState(() => Date.now());
+  const [sessionId, setSessionId] = useState(createSessionId);
+  const [sessionStart, setSessionStart] = useState(() => Date.now());
+  const [cardShownAt, setCardShownAt] = useState(() => Date.now());
+  const [lastUndo, setLastUndo] = useState<UndoSnapshot | null>(null);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [initPrompted, setInitPrompted] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const pausedAtRef = useRef<number | null>(null);
+  const pausedTotalRef = useRef(0);
+
+  const sessionQueueRef = useRef(sessionQueue);
+  const currentIndexRef = useRef(currentIndex);
+  const completedRef = useRef(completed);
+  const sessionIdRef = useRef(sessionId);
+  const sessionStartRef = useRef(sessionStart);
+  const deckIdRef = useRef(deckId);
 
   useEffect(() => {
-    if (queue.length > 0 && sessionQueue.length === 0 && !completed) {
-      setSessionQueue(queue);
-      setCurrentIndex(0);
-      setFlipped(false);
+    sessionQueueRef.current = sessionQueue;
+  }, [sessionQueue]);
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+  useEffect(() => {
+    completedRef.current = completed;
+  }, [completed]);
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+  useEffect(() => {
+    sessionStartRef.current = sessionStart;
+  }, [sessionStart]);
+  useEffect(() => {
+    deckIdRef.current = deckId;
+  }, [deckId]);
+
+  const persistSession = useCallback(() => {
+    const items = sessionQueueRef.current;
+    const index = currentIndexRef.current;
+    if (completedRef.current || items.length === 0 || index >= items.length) {
+      return;
     }
-  }, [queue, sessionQueue.length, completed]);
+
+    localDataStorage.setSession({
+      sessionId: sessionIdRef.current,
+      deckId: deckIdRef.current,
+      cardIds: items.map(item => item.card.id),
+      index,
+      startedAt: new Date(sessionStartRef.current).toISOString(),
+      ratingsPending: [],
+    });
+  }, []);
+
+  const clearSession = useCallback(() => {
+    localDataStorage.setSession(null);
+  }, []);
+
+  const startFresh = useCallback((items: ReviewQueueItem[]) => {
+    const id = createSessionId();
+    const now = Date.now();
+    setSessionId(id);
+    setSessionQueue(items);
+    setCurrentIndex(0);
+    setFlipped(false);
+    setCompleted(false);
+    setSessionStart(now);
+    setCardShownAt(now);
+    setLastUndo(null);
+    clearSession();
+  }, [clearSession]);
+
+  const startResumed = useCallback(
+    (items: ReviewQueueItem[], saved: UnfinishedSession) => {
+      const {queue: ordered, index} = buildResumedQueue(items, saved);
+      const now = Date.now();
+      setSessionId(saved.sessionId || createSessionId());
+      setSessionQueue(ordered);
+      setCurrentIndex(index);
+      setFlipped(false);
+      setCompleted(false);
+      setSessionStart(
+        saved.startedAt ? new Date(saved.startedAt).getTime() : now,
+      );
+      setCardShownAt(now);
+      setLastUndo(null);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (initPrompted || isLoading || error || queue.length === 0) {
+      return;
+    }
+    if (sessionQueue.length > 0 || completed) {
+      return;
+    }
+
+    setInitPrompted(true);
+    const saved = localDataStorage.getSession();
+    const canResume =
+      saved != null &&
+      sessionMatchesDeck(saved, deckId) &&
+      saved.cardIds.length > 0 &&
+      saved.index < saved.cardIds.length;
+
+    if (!canResume || !saved) {
+      startFresh(queue);
+      return;
+    }
+
+    Alert.alert(
+      'Resume session?',
+      `Continue from card ${saved.index + 1} of ${saved.cardIds.length}?`,
+      [
+        {
+          text: 'Start over',
+          style: 'destructive',
+          onPress: () => startFresh(queue),
+        },
+        {
+          text: 'Resume',
+          onPress: () => startResumed(queue, saved),
+        },
+      ],
+      {cancelable: false},
+    );
+  }, [
+    completed,
+    deckId,
+    error,
+    initPrompted,
+    isLoading,
+    queue,
+    sessionQueue.length,
+    startFresh,
+    startResumed,
+  ]);
 
   const currentItem = sessionQueue[currentIndex];
   const totalCards = sessionQueue.length;
-  const isSessionDone = completed || (totalCards > 0 && currentIndex >= totalCards);
+  const isSessionDone =
+    completed || (totalCards > 0 && currentIndex >= totalCards);
+
+  useEffect(() => {
+    if (!currentItem) {
+      setBookmarked(false);
+      return;
+    }
+    setBookmarked(localDataStorage.isBookmarked(currentItem.card.id));
+  }, [currentItem?.card.id]);
+
+  useEffect(() => {
+    if (currentItem) {
+      setCardShownAt(Date.now());
+    }
+  }, [currentItem?.card.id]);
 
   const deckTitle = useMemo(() => {
     if (deckId && currentItem?.deck.title) return currentItem.deck.title;
@@ -66,53 +256,183 @@ export function ReviewSessionScreen({navigation, route}: Props) {
     return 'All decks';
   }, [currentItem, deckId, sessionQueue]);
 
-  const elapsedMinutes = Math.floor((Date.now() - sessionStart) / 60000);
+  useEffect(() => {
+    if (paused || isSessionDone || isLoading) return;
+    const tick = () => {
+      const raw = Math.floor(
+        (Date.now() - sessionStart - pausedTotalRef.current) / 1000,
+      );
+      setElapsedSec(Math.max(0, raw));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [paused, sessionStart, isLoading]);
+
+  const timerLabel = useMemo(() => {
+    const mins = Math.floor(elapsedSec / 60);
+    const secs = elapsedSec % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }, [elapsedSec]);
+
+  const handlePauseToggle = useCallback(() => {
+    if (paused) {
+      if (pausedAtRef.current != null) {
+        pausedTotalRef.current += Date.now() - pausedAtRef.current;
+        pausedAtRef.current = null;
+      }
+      setPaused(false);
+      toast.info('Session resumed');
+      return;
+    }
+    pausedAtRef.current = Date.now();
+    setPaused(true);
+    toast.info('Session paused');
+  }, [paused]);
+
+  const handleExplainAi = useCallback(() => {
+    toast.info('Coming soon', 'AI explanations will be available in a future update.');
+  }, []);
+
+  const handleReport = useCallback(() => {
+    toast.info('Thanks', 'Issue flagged for this card.');
+  }, []);
+
+  const finishSession = useCallback(() => {
+    setCompleted(true);
+    clearSession();
+  }, [clearSession]);
+
+  useEffect(() => {
+    if (totalCards > 0 && currentIndex >= totalCards && !completed) {
+      finishSession();
+    }
+  }, [currentIndex, totalCards, completed, finishSession]);
+
+  useEffect(() => {
+    const onAppState = (next: AppStateStatus) => {
+      if (next === 'background' || next === 'inactive') {
+        persistSession();
+      }
+    };
+    const sub = AppState.addEventListener('change', onAppState);
+    return () => sub.remove();
+  }, [persistSession]);
+
+  useEffect(() => {
+    const unsub = navigation.addListener('beforeRemove', () => {
+      if (completedRef.current) {
+        clearSession();
+        return;
+      }
+      persistSession();
+    });
+    return unsub;
+  }, [navigation, persistSession, clearSession]);
+
+  const writeSession = useCallback(
+    (items: ReviewQueueItem[], index: number) => {
+      if (items.length === 0 || index >= items.length) {
+        clearSession();
+        return;
+      }
+      localDataStorage.setSession({
+        sessionId: sessionIdRef.current,
+        deckId: deckIdRef.current,
+        cardIds: items.map(item => item.card.id),
+        index,
+        startedAt: new Date(sessionStartRef.current).toISOString(),
+        ratingsPending: [],
+      });
+    },
+    [clearSession],
+  );
 
   const handleRate = useCallback(
     async (rating: EaseRating) => {
       if (!currentItem || isRating) return;
 
+      const durationMs = Math.max(0, Date.now() - cardShownAt);
+      const undoSnapshot: UndoSnapshot = {
+        queue: sessionQueue,
+        index: currentIndex,
+        flipped: true,
+      };
+
       try {
-        await rateCard({cardId: currentItem.card.id, rating});
-
-        if (rating === 'again') {
-          setSessionQueue(prev => {
-            const remaining = prev.filter(
-              item => item.card.id !== currentItem.card.id,
-            );
-            return [...remaining, currentItem];
-          });
-        } else {
-          setCurrentIndex(prev => prev + 1);
-        }
-
-        setFlipped(false);
+        await rateCard({
+          cardId: currentItem.card.id,
+          rating,
+          durationMs,
+        });
       } catch (err) {
-        toast.error('Could not save rating', getApiErrorMessage(err));
+        if (isNetworkError(err)) {
+          localDataStorage.enqueuePendingRating({
+            cardId: currentItem.card.id,
+            rating,
+            durationMs,
+          });
+          toast.info('Saved offline — will sync');
+        } else {
+          toast.error('Could not save rating', getApiErrorMessage(err));
+          return;
+        }
       }
+
+      setLastUndo(undoSnapshot);
+
+      let nextQueue = sessionQueue;
+      let nextIndex = currentIndex;
+
+      if (rating === 'again') {
+        nextQueue = [
+          ...sessionQueue.filter(item => item.card.id !== currentItem.card.id),
+          currentItem,
+        ];
+        setSessionQueue(nextQueue);
+      } else {
+        nextIndex = currentIndex + 1;
+        setCurrentIndex(nextIndex);
+      }
+
+      setFlipped(false);
+      writeSession(nextQueue, nextIndex);
     },
-    [currentItem, isRating, rateCard],
+    [
+      cardShownAt,
+      currentIndex,
+      currentItem,
+      isRating,
+      rateCard,
+      sessionQueue,
+      writeSession,
+    ],
   );
 
-  useEffect(() => {
-    if (totalCards > 0 && currentIndex >= totalCards && !completed) {
-      setCompleted(true);
-    }
-  }, [currentIndex, totalCards, completed]);
+  const handleUndo = useCallback(() => {
+    if (!lastUndo || isRating) return;
+    setSessionQueue(lastUndo.queue);
+    setCurrentIndex(lastUndo.index);
+    setFlipped(lastUndo.flipped);
+    setCompleted(false);
+    setLastUndo(null);
+    setCardShownAt(Date.now());
+    writeSession(lastUndo.queue, lastUndo.index);
+  }, [isRating, lastUndo, writeSession]);
 
-  const headerRight = (
-    <LibraryProfileButton onPress={openProfile}>
-      <ProfileAvatar
-        name={user?.name}
-        email={user?.email}
-        imageUrl={user?.avatarUrl}
-        size={32}
-        variant="brand"
-      />
-    </LibraryProfileButton>
-  );
+  const handleToggleBookmark = useCallback(() => {
+    if (!currentItem) return;
+    const next = localDataStorage.toggleBookmark(currentItem.card.id);
+    setBookmarked(next.includes(currentItem.card.id));
+  }, [currentItem]);
+
+  const handleDone = useCallback(() => {
+    clearSession();
+    navigation.goBack();
+  }, [clearSession, navigation]);
 
   const screenStyle = {backgroundColor: libraryTokens.background};
+  const bottomPadding = Math.max(insets.bottom, 12);
 
   if (isLoading) {
     return (
@@ -161,14 +481,14 @@ export function ReviewSessionScreen({navigation, route}: Props) {
       <View className="flex-1" style={screenStyle}>
         <ReviewSessionHeader
           title="Session complete"
-          onBack={() => navigation.goBack()}
+          onBack={handleDone}
         />
         <View className="flex-1 px-5 pt-6">
           <Text className="text-body text-muted leading-6 mb-6">
             You reviewed {totalCards} {totalCards === 1 ? 'card' : 'cards'}. Cards rated
             Good or Easy will reappear on their scheduled dates.
           </Text>
-          <Button label="Done" onPress={() => navigation.goBack()} />
+          <Button label="Done" onPress={handleDone} />
         </View>
       </View>
     );
@@ -182,7 +502,14 @@ export function ReviewSessionScreen({navigation, route}: Props) {
     );
   }
 
-  const bottomPadding = Math.max(insets.bottom, 16) + TAB_BAR_CLEARANCE;
+  const ratingBar = (
+    <RatingBar
+      review={currentItem.review}
+      onRate={rating => void handleRate(rating)}
+      disabled={isRating || paused}
+      contentWidth={maxContentWidth}
+    />
+  );
 
   return (
     <View className="flex-1" style={screenStyle}>
@@ -190,9 +517,12 @@ export function ReviewSessionScreen({navigation, route}: Props) {
 
       <ReviewSessionHeader
         title={deckTitle}
-        subtitle={`Daily review session${elapsedMinutes > 0 ? ` · ${elapsedMinutes}m` : ''}`}
+        subtitle={`Card ${currentIndex + 1} of ${totalCards}`}
+        modeLabel="Spaced Repetition"
         onBack={() => navigation.goBack()}
-        right={headerRight}
+        bookmarked={bookmarked}
+        onToggleBookmark={handleToggleBookmark}
+        timerLabel={timerLabel}
       />
 
       <ScrollView
@@ -200,19 +530,40 @@ export function ReviewSessionScreen({navigation, route}: Props) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
-          paddingHorizontal: libraryTokens.containerPadding,
-          paddingTop: 16,
-          paddingBottom: bottomPadding,
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: 12,
           flexGrow: 1,
         }}>
         <View
           className="w-full self-center"
-          style={{maxWidth: maxContentWidth, gap: libraryTokens.sectionGap}}>
+          style={{maxWidth: maxContentWidth, gap: 16}}>
           <ReviewProgress
             current={currentIndex + 1}
             total={totalCards}
             variant="session"
           />
+
+          {paused ? (
+            <View
+              style={{
+                backgroundColor: brandColors.paleLime,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: brandColors.border,
+                padding: 12,
+                alignItems: 'center',
+              }}>
+              <Text
+                style={{
+                  fontFamily: fonts.bodySemiBold,
+                  fontSize: 13,
+                  color: brandColors.olive,
+                }}>
+                Session paused — tap Resume below to continue
+              </Text>
+            </View>
+          ) : null}
 
           <View className="justify-center">
             <FlipCard
@@ -220,22 +571,75 @@ export function ReviewSessionScreen({navigation, route}: Props) {
               question={currentItem.card.question}
               answer={currentItem.card.answer}
               flipped={flipped}
-              onFlip={() => setFlipped(prev => !prev)}
+              onFlip={() => {
+                if (!paused) setFlipped(prev => !prev);
+              }}
+              cardNumber={currentIndex + 1}
+              reducedMotion={reducedMotion}
+              onExplainAi={handleExplainAi}
+              onReport={handleReport}
             />
           </View>
 
-          {flipped ? (
-            <Animated.View entering={FadeInDown.duration(350).delay(100)}>
-              <RatingBar
-                review={currentItem.review}
-                onRate={rating => void handleRate(rating)}
-                disabled={isRating}
-                contentWidth={maxContentWidth}
-              />
-            </Animated.View>
+          {flipped && !paused ? (
+            reducedMotion ? (
+              ratingBar
+            ) : (
+              <Animated.View entering={FadeInDown.duration(350).delay(100)}>
+                {ratingBar}
+              </Animated.View>
+            )
           ) : null}
         </View>
       </ScrollView>
+
+      <View
+        className="flex-row items-center justify-between"
+        style={{
+          paddingHorizontal: 20,
+          paddingTop: 6,
+          paddingBottom: bottomPadding,
+        }}>
+        <Pressable
+          onPress={handleUndo}
+          disabled={!lastUndo || isRating}
+          accessibilityRole="button"
+          accessibilityLabel="Undo rating"
+          className={`flex-row items-center active:opacity-70 ${
+            !lastUndo || isRating ? 'opacity-30' : ''
+          }`}
+          style={{gap: 6, paddingVertical: 6, paddingHorizontal: 8}}>
+          <MaterialIcons name="undo" size={16} color={libraryTokens.ink} />
+          <Text
+            style={{
+              fontFamily: fonts.bodySemiBold,
+              fontSize: 12,
+              color: libraryTokens.ink,
+            }}>
+            Undo rating
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={handlePauseToggle}
+          accessibilityRole="button"
+          accessibilityLabel={paused ? 'Resume session' : 'Pause session'}
+          className="flex-row items-center active:opacity-70"
+          style={{gap: 6, paddingVertical: 6, paddingHorizontal: 8}}>
+          <MaterialIcons
+            name={paused ? 'play-arrow' : 'pause'}
+            size={16}
+            color={reviewTokens.muted}
+          />
+          <Text
+            style={{
+              fontFamily: fonts.bodySemiBold,
+              fontSize: 12,
+              color: reviewTokens.muted,
+            }}>
+            {paused ? 'Resume session' : 'Pause session'}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }

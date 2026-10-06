@@ -11,9 +11,43 @@ import { legalRouter } from "./routes/legal.routes";
 import { progressRouter } from "./routes/progress.routes";
 import { reviewsRouter } from "./routes/reviews.routes";
 
+function resolveCorsOrigin(
+  corsOrigin: string | undefined,
+  isProduction: boolean,
+): boolean | string | string[] {
+  if (!corsOrigin || corsOrigin.trim() === "" || corsOrigin.trim() === "*") {
+    if (isProduction) {
+      console.warn(
+        "[cors] CORS_ORIGIN is '*' or unset in production; prefer a comma-separated allowlist",
+      );
+    }
+    return true;
+  }
+
+  const allowlist = corsOrigin
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (allowlist.length === 0) {
+    if (isProduction) {
+      console.warn(
+        "[cors] CORS_ORIGIN allowlist is empty in production; prefer a comma-separated allowlist",
+      );
+    }
+    return true;
+  }
+
+  return allowlist.length === 1 ? allowlist[0]! : allowlist;
+}
+
 export function createApp() {
   const env = getEnv();
   const app = express();
+  const isProduction = process.env.NODE_ENV === "production";
+
+  app.disable("x-powered-by");
+  app.set("trust proxy", 1);
 
   app.use(
     helmet({
@@ -29,10 +63,18 @@ export function createApp() {
   );
   app.use(
     cors({
-      origin: env.CORS_ORIGIN === "*" ? true : (env.CORS_ORIGIN ?? true),
+      origin: resolveCorsOrigin(env.CORS_ORIGIN, isProduction),
     }),
   );
   app.use(express.json({ limit: "1mb" }));
+
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests. Please try again later." },
+  });
 
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -48,6 +90,7 @@ export function createApp() {
   // Public legal pages for Play Console and in-app HTTPS links.
   app.use(legalRouter);
 
+  app.use("/api", apiLimiter);
   app.use("/api/auth", authLimiter, authRouter);
   app.use("/api/decks", decksRouter);
   app.use("/api/decks/:deckId/cards", deckCardsRouter);

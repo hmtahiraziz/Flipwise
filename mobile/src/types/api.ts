@@ -30,6 +30,9 @@ export type Deck = {
   subject: string;
   description: string | null;
   coverImageUrl: string | null;
+  examDate?: string | null;
+  isFavorite?: boolean;
+  tags?: string[] | null;
   isArchived: boolean;
   cardCount: number;
   dueCount: number;
@@ -59,6 +62,9 @@ export type Flashcard = {
   deckId: string;
   question: string;
   answer: string;
+  explanation?: string | null;
+  hint?: string | null;
+  cardType?: string;
   imageUrl: string | null;
   sortOrder: number;
   createdAt: string;
@@ -87,6 +93,10 @@ export type GenerateCardsRequest = {
   content: string;
   count: number;
   tone?: 'concise' | 'detailed' | 'child-friendly' | 'critical';
+  difficulty?: 'easy' | 'medium' | 'hard';
+  cardFormat?: 'qa' | 'cloze';
+  detailMode?: 'concise' | 'examples';
+  language?: string;
 };
 
 export type ImportSourceResponse = {
@@ -122,6 +132,7 @@ export type ReviewQueueResponse = {
 
 export type RateCardRequest = {
   rating: EaseRating;
+  durationMs?: number;
 };
 
 export type RateCardResponse = {

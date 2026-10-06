@@ -3,9 +3,12 @@ import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {legalDocuments, type LegalDocumentKey} from '../../config/legal';
 import {AppHeader} from '../../components/ui/AppHeader';
-import type {LibraryStackParamList} from '../../navigation/types';
+import type {ProfileRoutesParamList} from '../../navigation/types';
 
-type Props = NativeStackScreenProps<LibraryStackParamList, 'PrivacyPolicy' | 'TermsOfService' | 'DataHandling'>;
+type Props = NativeStackScreenProps<
+  ProfileRoutesParamList,
+  'PrivacyPolicy' | 'TermsOfService' | 'DataHandling'
+>;
 
 type LegalDocumentScreenProps = Props & {
   documentKey: LegalDocumentKey;
@@ -52,14 +55,20 @@ function LegalDocumentContent({documentKey, navigation}: LegalDocumentScreenProp
   );
 }
 
-export function PrivacyPolicyScreen(props: NativeStackScreenProps<LibraryStackParamList, 'PrivacyPolicy'>) {
+export function PrivacyPolicyScreen(
+  props: NativeStackScreenProps<ProfileRoutesParamList, 'PrivacyPolicy'>,
+) {
   return <LegalDocumentContent {...props} documentKey="privacy" />;
 }
 
-export function TermsOfServiceScreen(props: NativeStackScreenProps<LibraryStackParamList, 'TermsOfService'>) {
+export function TermsOfServiceScreen(
+  props: NativeStackScreenProps<ProfileRoutesParamList, 'TermsOfService'>,
+) {
   return <LegalDocumentContent {...props} documentKey="terms" />;
 }
 
-export function DataHandlingScreen(props: NativeStackScreenProps<LibraryStackParamList, 'DataHandling'>) {
+export function DataHandlingScreen(
+  props: NativeStackScreenProps<ProfileRoutesParamList, 'DataHandling'>,
+) {
   return <LegalDocumentContent {...props} documentKey="data" />;
 }

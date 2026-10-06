@@ -1,4 +1,5 @@
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import {AuthWelcomeScreen} from '../screens/auth/AuthWelcomeScreen';
 import {EmailAuthScreen} from '../screens/auth/EmailAuthScreen';
 import {EmailVerificationScreen} from '../screens/auth/EmailVerificationScreen';
 import {ForgotPasswordScreen} from '../screens/auth/ForgotPasswordScreen';
@@ -10,12 +11,9 @@ export function AuthStack() {
   return (
     <Stack.Navigator
       screenOptions={{headerShown: false}}
-      initialRouteName="EmailAuth">
-      <Stack.Screen
-        name="EmailAuth"
-        component={EmailAuthScreen}
-        initialParams={{mode: 'signIn'}}
-      />
+      initialRouteName="AuthWelcome">
+      <Stack.Screen name="AuthWelcome" component={AuthWelcomeScreen} />
+      <Stack.Screen name="EmailAuth" component={EmailAuthScreen} />
       <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </Stack.Navigator>

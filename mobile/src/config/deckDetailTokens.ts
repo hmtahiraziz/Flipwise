@@ -1,16 +1,25 @@
-/** Deck detail screen tokens — pixel-match to Computer Deck HTML mock. */
+/** Deck detail tokens — Electric Repetition / Stitch. */
+import {brandColors, lightColors} from './theme';
+
 export const deckDetailTokens = {
-  brand: '#C6F135',
-  brandMuted: 'rgba(198, 241, 53, 0.2)',
-  surface: '#F8F9FD',
-  surfaceWarm: '#F6F7F1',
-  surfaceContainer: '#FFFFFF',
-  ink: '#0F172A',
-  mutedText: '#64748B',
-  border: '#F1F5F9',
-  borderStrong: '#E2E8F0',
+  brand: brandColors.lime,
+  brandMuted: 'rgba(199, 245, 43, 0.22)',
+  surface: brandColors.background,
+  surfaceWarm: lightColors.surfaceContainerLow,
+  surfaceContainer: brandColors.surface,
+  ink: brandColors.charcoal,
+  mutedText: brandColors.muted,
+  primary: lightColors.primary,
+  secondaryContainer: lightColors.secondaryContainer,
+  onSecondaryContainer: lightColors.onSecondaryContainer,
+  tertiaryContainer: brandColors.paleLime,
+  border: brandColors.border,
+  borderStrong: brandColors.border,
+  borderSubtle: 'rgba(228, 231, 220, 0.85)',
+  error: brandColors.dangerIcon,
+  errorMuted: brandColors.dangerBg,
   cardRadius: 20,
-  containerPadding: 24,
-  sectionGap: 32,
-  statGap: 12,
+  containerPadding: 16,
+  sectionGap: 20,
+  statGap: 10,
 } as const;

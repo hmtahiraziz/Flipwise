@@ -9,6 +9,10 @@ import {
   flashcardRetryUserPrompt,
   truncateContent,
   type DeckPromptContext,
+  type GenerationCardFormat,
+  type GenerationDetailMode,
+  type GenerationDifficulty,
+  type GenerationOptions,
   type GenerationTone,
 } from "./prompts";
 
@@ -26,6 +30,10 @@ export type GenerateCardsInput = {
   content: string;
   count: number;
   tone?: GenerationTone;
+  difficulty?: GenerationDifficulty;
+  cardFormat?: GenerationCardFormat;
+  detailMode?: GenerationDetailMode;
+  language?: string;
   deck?: DeckPromptContext;
 };
 
@@ -70,31 +78,63 @@ function parseCardsFromMessage(message: string): GeneratedCard[] {
   return generatedCardsSchema.parse(payload);
 }
 
+function normalizeGeneratedCard(
+  card: GeneratedCard,
+  format: GenerationCardFormat,
+): GeneratedCard {
+  let question = card.question.replace(/\s+/g, " ").trim();
+  let answer = card.answer.replace(/\s+/g, " ").trim();
+
+  // Strip accidental numbering / labels models sometimes add.
+  question = question.replace(/^(?:card\s*)?\d+[\).:\-]\s*/i, "");
+  answer = answer.replace(/^(?:answer\s*[:\-]\s*)/i, "");
+
+  if (format === "cloze" && !question.includes("____")) {
+    // Soft normalize common cloze markers into our blank style.
+    question = question
+      .replace(/\{\{c\d+::([^}]+)\}\}/gi, "____")
+      .replace(/\{{2,}([^}]+)\}{2,}/g, "____")
+      .replace(/_{3,}/g, "____")
+      .replace(/\[blank\]/gi, "____")
+      .replace(/\.{3,}/g, "____");
+  }
+
+  return { question, answer };
+}
+
 async function callOpenAI(
   sourceType: "topic" | "notes",
   content: string,
   count: number,
-  tone: GenerationTone,
+  options: GenerationOptions,
   deck?: DeckPromptContext,
   retryIssues?: string[],
 ): Promise<GeneratedCard[]> {
   const env = getEnv();
   const openai = getOpenAI();
+  const format = options.cardFormat ?? "qa";
 
   const userContent = retryIssues?.length
-    ? flashcardRetryUserPrompt(sourceType, content, count, retryIssues, deck)
-    : `${flashcardGenerationUserPrompt(sourceType, content, count, deck)}
+    ? flashcardRetryUserPrompt(
+        sourceType,
+        content,
+        count,
+        retryIssues,
+        deck,
+        options,
+      )
+    : `${flashcardGenerationUserPrompt(sourceType, content, count, deck, options)}
 
 Return JSON: { "cards": [ ... ] }`;
 
   const completion = await openai.chat.completions.create({
     model: env.OPENAI_MODEL,
-    temperature: retryIssues?.length ? 0.3 : 0.4,
+    temperature: retryIssues?.length ? 0.25 : 0.45,
     response_format: { type: "json_object" },
     messages: [
       {
         role: "system",
-        content: flashcardGenerationSystemPrompt(tone, sourceType, deck),
+        content: flashcardGenerationSystemPrompt(options, sourceType, deck),
       },
       { role: "user", content: userContent },
     ],
@@ -105,7 +145,9 @@ Return JSON: { "cards": [ ... ] }`;
     throw new AppError(502, "AI returned an empty response. Please try again.");
   }
 
-  return parseCardsFromMessage(message);
+  return parseCardsFromMessage(message).map((card) =>
+    normalizeGeneratedCard(card, format),
+  );
 }
 
 function sleep(ms: number): Promise<void> {
@@ -127,7 +169,14 @@ export async function generateFlashcards(
     );
   }
 
-  const tone = input.tone ?? "concise";
+  const options: GenerationOptions = {
+    tone: input.tone ?? "concise",
+    difficulty: input.difficulty ?? "medium",
+    cardFormat: input.cardFormat ?? "qa",
+    detailMode: input.detailMode ?? "concise",
+    language: input.language,
+  };
+
   let lastError: unknown;
   let lastIssues: string[] = [];
 
@@ -137,7 +186,7 @@ export async function generateFlashcards(
         input.sourceType,
         content,
         input.count,
-        tone,
+        options,
         input.deck,
         attempt > 1 ? lastIssues : undefined,
       );

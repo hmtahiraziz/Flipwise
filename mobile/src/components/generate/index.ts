@@ -8,3 +8,7 @@ export {GenerateReviewPanel} from './GenerateReviewPanel';
 export {GenerateScreenFooter} from './GenerateScreenFooter';
 export {GenerateSegmentSelector} from './GenerateSegmentSelector';
 export {GenerateSourceTypeToggle} from './GenerateSourceTypeToggle';
+export {DocumentImportPanel} from './DocumentImportPanel';
+export type {CognitiveDensity} from './DocumentImportPanel';
+export {CameraScanPanel} from './CameraScanPanel';
+export type {ScanDensity} from './CameraScanPanel';

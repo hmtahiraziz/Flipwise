@@ -41,6 +41,9 @@ export type DeckFormValues = z.infer<typeof deckSchema>;
 export const cardSchema = z.object({
   question: z.string().trim().min(1, 'Question is required').max(2000),
   answer: z.string().trim().min(1, 'Answer is required').max(4000),
+  explanation: z.string().trim().max(4000).optional(),
+  hint: z.string().trim().max(1000).optional(),
+  cardType: z.enum(['basic', 'cloze']).optional(),
 });
 
 export const generateCardsSchema = z.object({
@@ -48,6 +51,10 @@ export const generateCardsSchema = z.object({
   content: z.string().trim().min(1, 'Enter a topic or paste your notes').max(20000),
   count: z.number().int().min(3).max(30),
   tone: z.enum(['concise', 'detailed', 'child-friendly', 'critical']),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  cardFormat: z.enum(['qa', 'cloze']).optional(),
+  detailMode: z.enum(['concise', 'examples']).optional(),
+  language: z.string().trim().min(2).max(16).optional(),
 });
 
 export type CardFormValues = z.infer<typeof cardSchema>;

@@ -1,5 +1,6 @@
 import {ActivityIndicator, Pressable, Text, View} from 'react-native';
-import {fonts} from '../../config/theme';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 
 type GenerateReviewFooterProps = {
@@ -11,28 +12,24 @@ type GenerateReviewFooterProps = {
   compact?: boolean;
 };
 
-/** Fixed footer — Discard + Save row matching HTML mockup (h-14, rounded-xl). */
 export function GenerateReviewFooter({
-  deckTitle,
   cardCount,
   saving = false,
   onSave,
   onDiscard,
-  compact,
 }: GenerateReviewFooterProps) {
-  const deckName = deckTitle?.trim() || 'deck';
-  const saveLabel = compact ? `Save (${cardCount})` : `Save to ${deckName}`;
-
   return (
     <View
       style={{
-        paddingHorizontal: libraryTokens.containerPadding,
-        paddingTop: 16,
+        paddingHorizontal: 16,
+        paddingTop: 12,
         paddingBottom: 8,
-        backgroundColor: libraryTokens.background,
+        backgroundColor: brandColors.surface,
+        borderTopWidth: 1,
+        borderTopColor: libraryTokens.border,
       }}>
       <View
-        className="flex-row"
+        className="flex-row items-center"
         style={{
           gap: 12,
           maxWidth: libraryTokens.contentMaxWidthWide,
@@ -44,23 +41,23 @@ export function GenerateReviewFooter({
           disabled={saving}
           accessibilityRole="button"
           accessibilityLabel="Discard all cards"
-          className="active:scale-[0.98]"
+          className="active:opacity-90"
           style={{
             flex: 1,
-            height: 56,
+            height: 48,
             alignItems: 'center',
             justifyContent: 'center',
             borderRadius: 12,
-            backgroundColor: libraryTokens.surface,
+            backgroundColor: brandColors.surface,
             borderWidth: 1,
             borderColor: libraryTokens.border,
             opacity: saving ? 0.5 : 1,
           }}>
           <Text
             style={{
-              fontFamily: fonts.bodySemiBold,
-              fontSize: 16,
-              color: libraryTokens.muted,
+              fontFamily: fonts.bodyBold,
+              fontSize: 14,
+              color: brandColors.charcoal,
             }}>
             Discard
           </Text>
@@ -70,37 +67,28 @@ export function GenerateReviewFooter({
           onPress={onSave}
           disabled={saving}
           accessibilityRole="button"
-          accessibilityLabel={saveLabel}
-          className="active:opacity-90"
+          accessibilityLabel={`Save ${cardCount} cards`}
+          className="active:opacity-90 flex-row items-center justify-center"
           style={{
-            flex: 1,
-            height: 56,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            paddingHorizontal: 12,
+            flex: 1.6,
+            height: 48,
             borderRadius: 12,
-            backgroundColor: libraryTokens.primaryContainer,
-            borderBottomWidth: 4,
-            borderBottomColor: '#ACD60E',
+            backgroundColor: brandColors.lime,
+            gap: 6,
             opacity: saving ? 0.75 : 1,
           }}>
           {saving ? (
-            <ActivityIndicator size="small" color={libraryTokens.onPrimaryContainer} />
+            <ActivityIndicator size="small" color={brandColors.charcoal} />
           ) : null}
           <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.8}
             style={{
-              fontFamily: fonts.bodySemiBold,
-              fontSize: 16,
-              color: libraryTokens.onPrimaryContainer,
-              flexShrink: 1,
+              fontFamily: fonts.display,
+              fontSize: 14,
+              color: brandColors.charcoal,
             }}>
-            {saveLabel}
+            Save ({cardCount} Cards)
           </Text>
+          <MaterialIcons name="arrow-forward" size={16} color={brandColors.charcoal} />
         </Pressable>
       </View>
     </View>

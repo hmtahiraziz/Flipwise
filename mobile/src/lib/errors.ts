@@ -1,17 +1,51 @@
 import axios from 'axios';
 import type {ApiErrorBody} from '../types/api';
 
+/** True when the request never reached a server response (offline / DNS / timeout without status). */
+export function isNetworkError(error: unknown): boolean {
+  return axios.isAxiosError(error) && !error.response;
+}
+
 export function getApiErrorMessage(error: unknown, fallback = 'Something went wrong'): string {
   if (!axios.isAxiosError(error)) {
-    return error instanceof Error ? error.message : fallback;
+    if (__DEV__ && error instanceof Error) {
+      return error.message;
+    }
+    return fallback;
   }
 
+  const status = error.response?.status;
   const data = error.response?.data as ApiErrorBody | undefined;
-  if (data?.error) {
+
+  if (status === 401) {
+    return 'Please sign in again.';
+  }
+  if (status === 403) {
+    return 'You do not have permission to do that.';
+  }
+  if (status === 404) {
+    return data?.error || 'Not found.';
+  }
+  if (status === 429) {
+    return data?.error || 'Too many requests. Try again shortly.';
+  }
+  if (status && status >= 500) {
+    return 'Server error. Please try again later.';
+  }
+
+  if (data?.error && typeof data.error === 'string') {
+    // Never surface stack traces or internal paths to users.
+    if (/stack|exception|at\s+\w+\s*\(/i.test(data.error)) {
+      return fallback;
+    }
     return data.error;
   }
 
-  return error.message || fallback;
+  if (!error.response) {
+    return 'Could not reach the server. Check your connection.';
+  }
+
+  return fallback;
 }
 
 export function getValidationErrors(error: unknown): Record<string, string> {

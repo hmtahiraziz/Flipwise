@@ -1,5 +1,5 @@
 import {useEffect} from 'react';
-import {Text, View} from 'react-native';
+import {Pressable, Text, View} from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Animated, {
   Easing,
@@ -9,108 +9,134 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import {fonts} from '../../config/theme';
+import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 
 type GenerateHeroSectionProps = {
   compact?: boolean;
   title?: string;
   subtitle?: string;
+  deckTitle?: string;
+  onPressDeck?: () => void;
 };
 
 export function GenerateHeroSection({
   compact,
-  title = 'Transform your notes',
-  subtitle = 'Create high-quality study cards instantly with powerful AI analysis.',
+  title = 'Create cards with AI',
+  subtitle = 'Choose a source, customize depth, and generate high-yield flashcards in seconds.',
+  deckTitle,
+  onPressDeck,
 }: GenerateHeroSectionProps) {
   const glow = useSharedValue(0.85);
-  const scale = useSharedValue(1);
 
   useEffect(() => {
     glow.value = withRepeat(
       withSequence(
-        withTiming(1, {duration: 1500, easing: Easing.inOut(Easing.ease)}),
-        withTiming(0.75, {duration: 1500, easing: Easing.inOut(Easing.ease)}),
+        withTiming(1, {duration: 1600, easing: Easing.inOut(Easing.ease)}),
+        withTiming(0.8, {duration: 1600, easing: Easing.inOut(Easing.ease)}),
       ),
       -1,
       false,
     );
-    scale.value = withRepeat(
-      withSequence(
-        withTiming(1.05, {duration: 1500, easing: Easing.inOut(Easing.ease)}),
-        withTiming(1, {duration: 1500, easing: Easing.inOut(Easing.ease)}),
-      ),
-      -1,
-      false,
-    );
-  }, [glow, scale]);
+  }, [glow]);
 
   const glowStyle = useAnimatedStyle(() => ({
-    opacity: glow.value * 0.4,
-    transform: [{scale: scale.value}],
+    opacity: glow.value * 0.35,
   }));
 
-  const iconSize = compact ? 56 : 64;
-
   return (
-    <View
-      className="items-center"
-      style={{
-        paddingTop: compact ? 24 : 32,
-        paddingBottom: compact ? 20 : 32,
-      }}>
-      <View style={{marginBottom: compact ? 16 : 24}}>
-        <Animated.View
-          style={[
-            {
-              position: 'absolute',
-              top: -6,
-              left: -6,
-              right: -6,
-              bottom: -6,
-              borderRadius: 999,
-              backgroundColor: libraryTokens.primaryContainer,
-            },
-            glowStyle,
-          ]}
-        />
+    <View className="items-center" style={{paddingTop: compact ? 12 : 16, paddingBottom: 4}}>
+      <View style={{marginBottom: 12}}>
         <View
           style={{
-            width: iconSize,
-            height: iconSize,
-            borderRadius: 24,
-            backgroundColor: libraryTokens.primaryContainer,
+            width: 56,
+            height: 56,
+            borderRadius: 999,
+            backgroundColor: brandColors.paleLime,
+            borderWidth: 1,
+            borderColor: 'rgba(199,245,43,0.6)',
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-          <MaterialIcons name="auto-awesome" size={compact ? 28 : 32} color="#161E00" />
+          <Animated.View
+            style={[
+              {
+                position: 'absolute',
+                width: 48,
+                height: 48,
+                borderRadius: 999,
+                backgroundColor: brandColors.lime,
+              },
+              glowStyle,
+            ]}
+          />
+          <View
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 999,
+              backgroundColor: brandColors.lime,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <MaterialIcons name="auto-awesome" size={22} color={brandColors.charcoal} />
+          </View>
         </View>
       </View>
 
       <Text
         style={{
           fontFamily: fonts.display,
-          fontSize: compact ? 22 : 24,
-          lineHeight: compact ? 28 : 32,
-          letterSpacing: -0.24,
+          fontSize: 22,
+          lineHeight: 28,
+          letterSpacing: -0.3,
           color: libraryTokens.ink,
           textAlign: 'center',
-          marginBottom: 8,
         }}>
         {title}
       </Text>
       <Text
         style={{
           fontFamily: fonts.body,
-          fontSize: 14,
-          lineHeight: 20,
-          color: libraryTokens.muted,
+          fontSize: 13,
+          lineHeight: 18,
+          color: '#70757D',
           textAlign: 'center',
-          maxWidth: 280,
-          paddingHorizontal: 8,
+          maxWidth: 300,
+          marginTop: 4,
         }}>
         {subtitle}
       </Text>
+
+      {deckTitle ? (
+        <Pressable
+          onPress={onPressDeck}
+          accessibilityRole="button"
+          className="active:opacity-90 flex-row items-center"
+          style={{
+            marginTop: 14,
+            backgroundColor: brandColors.surface,
+            borderWidth: 1,
+            borderColor: libraryTokens.border,
+            borderRadius: 999,
+            paddingHorizontal: 14,
+            paddingVertical: 7,
+            gap: 6,
+          }}>
+          <Text style={{fontFamily: fonts.body, fontSize: 12, color: '#70757D'}}>
+            Saving to
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.bodyBold,
+              fontSize: 12,
+              color: brandColors.olive,
+            }}>
+            {deckTitle}
+          </Text>
+          <MaterialIcons name="keyboard-arrow-down" size={14} color="#70757D" />
+        </Pressable>
+      ) : null}
     </View>
   );
 }

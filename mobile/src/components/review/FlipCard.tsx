@@ -1,7 +1,6 @@
-import type {ReactNode} from 'react';
 import {Pressable, ScrollView, Text, useWindowDimensions, View} from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import {SilhouetteCard} from '../ui/SilhouetteCard';
+import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 import {reviewTokens} from '../../config/reviewTokens';
 
@@ -10,32 +9,34 @@ type FlipCardProps = {
   answer: string;
   flipped: boolean;
   onFlip: () => void;
+  cardNumber?: number;
+  cardType?: string;
+  reducedMotion?: boolean;
+  onExplainAi?: () => void;
+  onReport?: () => void;
 };
 
-const CARD_MIN_HEIGHT = 380;
-const CARD_MAX_HEIGHT = 420;
-
-function SectionLabel({label, tone = 'muted'}: {label: string; tone?: 'muted' | 'primary'}) {
-  return (
-    <View className="shrink-0">
-      <Text
-        className={`text-label font-body-semibold uppercase tracking-widest ${
-          tone === 'primary' ? 'text-primary' : 'text-muted'
-        }`}>
-        {label}
-      </Text>
-      <View className="h-1 w-12 bg-primary-container rounded-full mt-2" />
-    </View>
-  );
+function keyTakeaway(answer: string): string {
+  const cleaned = answer.replace(/\s+/g, ' ').trim();
+  if (cleaned.length <= 140) return cleaned;
+  const cut = cleaned.slice(0, 140);
+  const lastStop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('; '));
+  if (lastStop > 60) return cut.slice(0, lastStop + 1);
+  return `${cut.trim()}…`;
 }
 
-function CardContent({children}: {children: ReactNode}) {
-  return <View className="flex-1">{children}</View>;
-}
-
-export function FlipCard({question, answer, flipped, onFlip}: FlipCardProps) {
+export function FlipCard({
+  question,
+  answer,
+  flipped,
+  onFlip,
+  cardNumber,
+  cardType = 'Concept Check',
+  onExplainAi,
+  onReport,
+}: FlipCardProps) {
   const {height} = useWindowDimensions();
-  const cardHeight = Math.min(CARD_MAX_HEIGHT, Math.max(CARD_MIN_HEIGHT, height * 0.48));
+  const minHeight = Math.min(420, Math.max(320, height * 0.42));
 
   return (
     <Pressable
@@ -43,83 +44,200 @@ export function FlipCard({question, answer, flipped, onFlip}: FlipCardProps) {
       onPress={onFlip}
       accessibilityRole="button"
       accessibilityLabel={flipped ? 'Hide answer' : 'Reveal answer'}>
-      <SilhouetteCard variant="review">
-        <View
-          className="border border-border overflow-hidden"
-          style={{
-            height: cardHeight,
-            borderRadius: reviewTokens.cardRadius,
-            backgroundColor: reviewTokens.card,
-          }}>
-          {!flipped ? (
-            <CardContent key="front">
-              <View className="flex-1 p-8">
-                <SectionLabel label="Question" />
-
-                <View className="flex-1 justify-center items-center py-6">
-                  <ScrollView
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{
-                      flexGrow: 1,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      paddingHorizontal: 4,
-                    }}
-                    style={{width: '100%'}}>
-                    <Text
-                      className="font-display text-[32px] text-secondary text-center tracking-tight leading-10"
-                      style={{color: reviewTokens.secondary}}>
-                      {question}
-                    </Text>
-                  </ScrollView>
-                </View>
-
-                <View className="shrink-0 flex-row items-center justify-center gap-2 opacity-50 pt-2">
-                  <MaterialIcons name="touch-app" size={16} color={reviewTokens.muted} />
-                  <Text className="text-caption text-muted">Tap to reveal</Text>
-                </View>
-              </View>
-            </CardContent>
-          ) : (
-            <CardContent key="back">
-              <View className="flex-1 p-8">
-                <SectionLabel label="The answer" tone="primary" />
-
-                <ScrollView
-                  className="flex-1 my-5"
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{paddingBottom: 4}}>
-                  <Text
-                    className="font-body text-body leading-relaxed"
-                    style={{color: reviewTokens.onSurface}}>
-                    {answer}
-                  </Text>
-                </ScrollView>
-
-                <View
-                  className="shrink-0 rounded-xl p-4 flex-row items-start gap-3"
-                  style={{backgroundColor: reviewTokens.surfaceContainerLow}}>
-                  <MaterialIcons
-                    name="auto-awesome"
-                    size={18}
-                    color={reviewTokens.primaryFixedDim}
-                  />
-                  <Text
-                    className="text-caption flex-1 leading-5 italic"
-                    style={{color: reviewTokens.muted}}>
-                    Rate honestly so your next review is scheduled at the right time.
-                  </Text>
-                </View>
-
-                <View className="shrink-0 flex-row items-center justify-center gap-2 mt-4 opacity-30">
-                  <MaterialIcons name="flip" size={14} color={reviewTokens.muted} />
-                  <Text className="text-[10px] text-muted">Tap to hide</Text>
-                </View>
-              </View>
-            </CardContent>
-          )}
+      <View
+        style={{
+          minHeight,
+          borderRadius: reviewTokens.cardRadius,
+          backgroundColor: reviewTokens.card,
+          borderWidth: 1,
+          borderColor: reviewTokens.border,
+          padding: 24,
+          shadowColor: brandColors.charcoal,
+          shadowOffset: {width: 0, height: 8},
+          shadowOpacity: 0.06,
+          shadowRadius: 16,
+          elevation: 3,
+        }}>
+        <View className="flex-row items-center justify-between" style={{marginBottom: 16}}>
+          <View
+            style={{
+              backgroundColor: brandColors.paleLime,
+              borderRadius: 999,
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+            }}>
+            <Text
+              style={{
+                fontFamily: fonts.bodyBold,
+                fontSize: 12,
+                letterSpacing: 0.6,
+                textTransform: 'uppercase',
+                color: brandColors.olive,
+              }}>
+              {cardNumber != null ? `Question ${cardNumber}` : 'Question'}
+            </Text>
+          </View>
+          <View className="flex-row items-center" style={{gap: 4}}>
+            <MaterialIcons name="psychology" size={14} color={brandColors.olive} />
+            <Text
+              style={{
+                fontFamily: fonts.bodyMedium,
+                fontSize: 12,
+                color: reviewTokens.muted,
+              }}>
+              {cardType}
+            </Text>
+          </View>
         </View>
-      </SilhouetteCard>
+
+        <Text
+          style={{
+            fontFamily: fonts.display,
+            fontSize: 21,
+            lineHeight: 28,
+            letterSpacing: -0.3,
+            color: brandColors.charcoal,
+            marginBottom: 20,
+          }}>
+          {question}
+        </Text>
+
+        <View className="flex-row items-center" style={{marginBottom: 16}}>
+          <View style={{flex: 1, height: 1, borderStyle: 'dashed', borderWidth: 0.5, borderColor: '#DFE2DA'}} />
+          <View
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 5,
+              backgroundColor: brandColors.lime,
+              borderWidth: 2,
+              borderColor: brandColors.surface,
+              marginHorizontal: 12,
+            }}
+          />
+          <View style={{flex: 1, height: 1, borderStyle: 'dashed', borderWidth: 0.5, borderColor: '#DFE2DA'}} />
+        </View>
+
+        {!flipped ? (
+          <View className="items-center justify-center" style={{paddingVertical: 28, gap: 8}}>
+            <MaterialIcons name="touch-app" size={22} color={reviewTokens.muted} />
+            <Text
+              style={{
+                fontFamily: fonts.bodySemiBold,
+                fontSize: 13,
+                color: reviewTokens.muted,
+              }}>
+              Tap to reveal answer
+            </Text>
+          </View>
+        ) : (
+          <View style={{gap: 16}}>
+            <View>
+              <Text
+                style={{
+                  fontFamily: fonts.bodyBold,
+                  fontSize: 11,
+                  letterSpacing: 0.8,
+                  textTransform: 'uppercase',
+                  color: reviewTokens.muted,
+                  marginBottom: 6,
+                }}>
+                Revealed Answer
+              </Text>
+              <ScrollView
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
+                style={{maxHeight: Math.max(120, height * 0.22)}}>
+                <Text
+                  style={{
+                    fontFamily: fonts.bodyMedium,
+                    fontSize: 15,
+                    lineHeight: 22,
+                    color: brandColors.charcoal,
+                  }}>
+                  {answer}
+                </Text>
+              </ScrollView>
+            </View>
+
+            <View
+              className="flex-row items-start"
+              style={{
+                backgroundColor: reviewTokens.takeawayBg,
+                borderWidth: 1,
+                borderColor: reviewTokens.takeawayBorder,
+                borderRadius: 16,
+                padding: 14,
+                gap: 10,
+              }}>
+              <Text style={{fontSize: 16}}>💡</Text>
+              <Text
+                style={{
+                  flex: 1,
+                  fontFamily: fonts.bodyMedium,
+                  fontSize: 12,
+                  lineHeight: 18,
+                  color: reviewTokens.takeawayText,
+                }}>
+                <Text style={{fontFamily: fonts.bodyBold}}>Key takeaway: </Text>
+                {keyTakeaway(answer)}
+              </Text>
+            </View>
+
+            <View
+              className="flex-row items-center justify-between"
+              style={{
+                marginTop: 4,
+                paddingTop: 14,
+                borderTopWidth: 1,
+                borderTopColor: '#F0F2EB',
+              }}>
+              <Pressable
+                onPress={e => {
+                  e.stopPropagation?.();
+                  onExplainAi?.();
+                }}
+                accessibilityRole="button"
+                className="flex-row items-center active:opacity-80"
+                style={{
+                  backgroundColor: brandColors.paleLime,
+                  borderRadius: 12,
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  gap: 6,
+                }}>
+                <MaterialIcons name="auto-awesome" size={14} color={brandColors.olive} />
+                <Text
+                  style={{
+                    fontFamily: fonts.bodyBold,
+                    fontSize: 12,
+                    color: brandColors.olive,
+                  }}>
+                  Explain with AI
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={e => {
+                  e.stopPropagation?.();
+                  onReport?.();
+                }}
+                accessibilityRole="button"
+                className="flex-row items-center active:opacity-70"
+                style={{gap: 4}}>
+                <MaterialIcons name="flag" size={14} color={reviewTokens.muted} />
+                <Text
+                  style={{
+                    fontFamily: fonts.bodySemiBold,
+                    fontSize: 12,
+                    color: reviewTokens.muted,
+                  }}>
+                  Report issue
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -136,6 +254,7 @@ export function ReviewProgress({
   variant = 'inline',
 }: ReviewProgressProps) {
   const progress = total > 0 ? current / total : 0;
+  const percent = Math.round(progress * 100);
 
   if (variant === 'header') {
     return (
@@ -158,29 +277,39 @@ export function ReviewProgress({
   if (variant === 'session') {
     return (
       <View className="w-full">
-        <View className="flex-row items-center justify-between mb-2">
+        <View className="flex-row items-center justify-between" style={{marginBottom: 4}}>
           <Text
-            className="text-label font-body-semibold uppercase tracking-widest"
-            style={{color: libraryTokens.muted}}>
+            style={{
+              fontFamily: fonts.bodyBold,
+              fontSize: 11,
+              letterSpacing: 0.8,
+              textTransform: 'uppercase',
+              color: reviewTokens.muted,
+            }}>
             Progress
           </Text>
           <Text
-            className="text-label font-body-semibold uppercase tracking-widest"
-            style={{color: libraryTokens.primary}}>
-            {current}/{total}
+            style={{
+              fontFamily: fonts.bodyBold,
+              fontSize: 11,
+              color: brandColors.charcoal,
+            }}>
+            {current} / {total} ({percent}%)
           </Text>
         </View>
         <View
-          className="h-3 rounded-full overflow-hidden border"
           style={{
-            backgroundColor: reviewTokens.cardStack,
-            borderColor: libraryTokens.border,
+            height: 8,
+            borderRadius: 999,
+            backgroundColor: '#E5E8E0',
+            overflow: 'hidden',
           }}>
           <View
-            className="h-full rounded-full"
             style={{
-              width: `${Math.max(progress * 100, 4)}%`,
-              backgroundColor: libraryTokens.primaryContainer,
+              width: `${Math.max(percent, percent > 0 ? 4 : 0)}%`,
+              height: '100%',
+              borderRadius: 999,
+              backgroundColor: brandColors.lime,
             }}
           />
         </View>
@@ -190,17 +319,29 @@ export function ReviewProgress({
 
   return (
     <View className="w-full">
-      <Text className="text-label text-muted uppercase mb-2">
+      <Text
+        style={{
+          fontFamily: fonts.body,
+          fontSize: 11,
+          color: reviewTokens.muted,
+          marginBottom: 8,
+          textTransform: 'uppercase',
+        }}>
         {current} / {total} cards
       </Text>
       <View
-        className="h-2 rounded-full overflow-hidden"
-        style={{backgroundColor: libraryTokens.surfaceContainerLow}}>
+        style={{
+          height: 8,
+          borderRadius: 999,
+          backgroundColor: libraryTokens.surfaceContainerLow,
+          overflow: 'hidden',
+        }}>
         <View
-          className="h-full rounded-full"
           style={{
             width: `${Math.max(progress * 100, 4)}%`,
-            backgroundColor: libraryTokens.primaryContainer,
+            height: '100%',
+            borderRadius: 999,
+            backgroundColor: brandColors.lime,
           }}
         />
       </View>

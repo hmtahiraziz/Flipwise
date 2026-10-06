@@ -9,29 +9,36 @@ import {
   SettingsSectionCard,
 } from '../../components/profile/SettingsSectionCard';
 import {SettingsLinkRow} from '../../components/profile/SettingsRows';
-import {SilhouetteCard} from '../../components/ui/SilhouetteCard';
-import {colors, fonts} from '../../config/theme';
+import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
-import {reviewTokens} from '../../config/reviewTokens';
 import {useAppUser} from '../../hooks/useAppUser';
 import {useDecks} from '../../hooks/useDecks';
 import {useLibraryLayout} from '../../hooks/useLibraryLayout';
 import {useProfileNavigation} from '../../hooks/useProfileNavigation';
+import {useProgressSummary} from '../../hooks/useProgress';
 import {useReviewQueue} from '../../hooks/useReviews';
-import type {LibraryStackParamList} from '../../navigation/types';
+import {preferencesStorage} from '../../storage/preferencesStorage';
+import type {ProfileRoutesParamList} from '../../navigation/types';
 
-type Props = NativeStackScreenProps<LibraryStackParamList, 'ProfileHome'>;
+type Props = NativeStackScreenProps<ProfileRoutesParamList, 'ProfileHome'>;
 
 export function ProfileScreen({navigation}: Props) {
   const layout = useLibraryLayout();
-  const {openSettings, openEditProfile, openDataHandling} = useProfileNavigation();
+  const {openSettings, openEditProfile, openDataHandling} =
+    useProfileNavigation();
   const {user} = useAppUser();
   const {data: decks = []} = useDecks();
   const {data: queue = []} = useReviewQueue();
+  const {data: summary} = useProgressSummary();
 
   const deckCount = decks.length;
   const dueCount = queue.length;
+  const cardCount = decks.reduce((sum, deck) => sum + deck.cardCount, 0);
+  const streak = summary?.currentStreak ?? 0;
+  const reviewedToday = summary?.reviewedTodayCount ?? 0;
+  const dailyGoal = preferencesStorage.getDailyGoal();
   const displayName = user?.name?.trim() || 'Flipwise learner';
+  const remindersOn = preferencesStorage.get().remindersEnabled;
 
   const settingsButton = (
     <Pressable
@@ -46,9 +53,7 @@ export function ProfileScreen({navigation}: Props) {
         borderRadius: 999,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: colors.surfaceContainer,
-        borderWidth: 1,
-        borderColor: libraryTokens.border,
+        backgroundColor: libraryTokens.surfaceContainerLow,
       }}>
       <MaterialIcons name="settings" size={22} color={libraryTokens.ink} />
     </Pressable>
@@ -79,43 +84,125 @@ export function ProfileScreen({navigation}: Props) {
           imageUrl={user?.avatarUrl}
         />
 
-        <SilhouetteCard variant="review">
-          <View
-            className="flex-row"
-            style={{
-              borderRadius: reviewTokens.cardRadius,
-              borderWidth: 1,
-              borderColor: reviewTokens.border,
-              backgroundColor: reviewTokens.card,
-              paddingVertical: 20,
-              paddingHorizontal: 12,
-            }}>
-            <ProfileStatTile label="Decks" value={deckCount} accent="brand" />
-            <View style={{width: 1, backgroundColor: libraryTokens.border}} />
-            <ProfileStatTile
-              label="Due now"
-              value={dueCount}
-              accent={dueCount > 0 ? 'danger' : 'default'}
-            />
-            <View style={{width: 1, backgroundColor: libraryTokens.border}} />
-            <ProfileStatTile
-              label="Cards"
-              value={decks.reduce((sum, deck) => sum + deck.cardCount, 0)}
-            />
-          </View>
-        </SilhouetteCard>
+        <View
+          style={{
+            backgroundColor: brandColors.surface,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: libraryTokens.borderSubtle,
+            paddingVertical: 16,
+            paddingHorizontal: 8,
+            flexDirection: 'row',
+          }}>
+          <ProfileStatTile label="Decks" value={deckCount} accent="brand" />
+          <View style={{width: 1, backgroundColor: libraryTokens.border}} />
+          <ProfileStatTile
+            label="Due now"
+            value={dueCount}
+            accent={dueCount > 0 ? 'danger' : 'default'}
+          />
+          <View style={{width: 1, backgroundColor: libraryTokens.border}} />
+          <ProfileStatTile label="Cards" value={cardCount} />
+        </View>
 
-        <View style={{gap: 8}}>
+        <View
+          style={{
+            backgroundColor: brandColors.surface,
+            borderRadius: 20,
+            padding: 16,
+            gap: 12,
+            borderWidth: 1,
+            borderColor: libraryTokens.borderSubtle,
+          }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+            <Text
+              style={{
+                fontFamily: fonts.bodySemiBold,
+                fontSize: 16,
+                color: libraryTokens.ink,
+              }}>
+              Study pulse
+            </Text>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 999,
+                backgroundColor: libraryTokens.secondaryContainer,
+              }}>
+              <MaterialIcons
+                name="local-fire-department"
+                size={14}
+                color={libraryTokens.onSecondaryContainer}
+              />
+              <Text
+                style={{
+                  fontFamily: fonts.bodyBold,
+                  fontSize: 12,
+                  color: libraryTokens.onSecondaryContainer,
+                }}>
+                {streak} day streak
+              </Text>
+            </View>
+          </View>
           <Text
             style={{
               fontFamily: fonts.body,
-              fontSize: 15,
-              lineHeight: 22,
+              fontSize: 14,
               color: libraryTokens.muted,
-              paddingHorizontal: 4,
             }}>
-            Manage your account, study preferences, and privacy settings.
+            {reviewedToday} / {dailyGoal} cards toward today&apos;s goal
           </Text>
+          <View
+            style={{
+              height: 8,
+              borderRadius: 999,
+              backgroundColor: libraryTokens.surfaceContainerLow,
+              overflow: 'hidden',
+            }}>
+            <View
+              style={{
+                height: '100%',
+                width: `${Math.min(
+                  100,
+                  Math.round((reviewedToday / Math.max(1, dailyGoal)) * 100),
+                )}%`,
+                backgroundColor: libraryTokens.primaryContainer,
+                borderRadius: 999,
+              }}
+            />
+          </View>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              marginTop: 4,
+            }}>
+            <MaterialIcons
+              name={remindersOn ? 'notifications-active' : 'notifications-off'}
+              size={18}
+              color={libraryTokens.primary}
+            />
+            <Text
+              style={{
+                fontFamily: fonts.body,
+                fontSize: 13,
+                color: libraryTokens.muted,
+              }}>
+              {remindersOn
+                ? 'Study reminders enabled'
+                : 'Study reminders are off — enable in Settings'}
+            </Text>
+          </View>
         </View>
 
         <SettingsSectionCard title="Account">
@@ -126,7 +213,7 @@ export function ProfileScreen({navigation}: Props) {
           />
           <SettingsCardDivider />
           <SettingsLinkRow
-            label="Settings"
+            label="Settings & notifications"
             icon="settings"
             onPress={openSettings}
           />

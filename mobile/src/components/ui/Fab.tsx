@@ -33,14 +33,14 @@ export function Fab({
           : colors.primaryContainer;
     const iconColor =
       variant === 'dark'
-        ? colors.white
+        ? libraryTokens.primaryContainer
         : variant === 'green'
           ? libraryTokens.primary
           : colors.onPrimaryContainer;
 
     return (
       <View
-        className={`absolute right-6 items-end ${className ?? ''}`}
+        className={`absolute right-5 items-end ${className ?? ''}`}
         style={{bottom: Math.max(insets.bottom, 12) + bottomOffset}}>
         <Pressable
           className="rounded-full items-center justify-center active:scale-90"
@@ -48,12 +48,14 @@ export function Fab({
             width: libraryTokens.fabSize,
             height: libraryTokens.fabSize,
             backgroundColor: bgColor,
+            borderWidth: variant === 'dark' ? 2 : 0,
+            borderColor: libraryTokens.primaryContainer,
             ...libraryFabShadow,
           }}
           onPress={onPress}
           accessibilityRole="button"
           accessibilityLabel={label}>
-          <MaterialIcons name={icon} size={30} color={iconColor} />
+          <MaterialIcons name={icon} size={28} color={iconColor} />
         </Pressable>
       </View>
     );

@@ -9,6 +9,9 @@ export type FlashcardRecord = {
   deckId: string;
   question: string;
   answer: string;
+  explanation: string | null;
+  hint: string | null;
+  cardType: string;
   imageUrl: string | null;
   sortOrder: number;
   createdAt: Date;
@@ -18,10 +21,27 @@ export type FlashcardRecord = {
 export type CreateCardInput = {
   question: string;
   answer: string;
+  explanation?: string | null;
+  hint?: string | null;
+  cardType?: string;
   imageUrl?: string | null;
 };
 
 export type UpdateCardInput = Partial<CreateCardInput>;
+
+const flashcardColumns = {
+  id: flashcards.id,
+  deckId: flashcards.deckId,
+  question: flashcards.question,
+  answer: flashcards.answer,
+  explanation: flashcards.explanation,
+  hint: flashcards.hint,
+  cardType: flashcards.cardType,
+  imageUrl: flashcards.imageUrl,
+  sortOrder: flashcards.sortOrder,
+  createdAt: flashcards.createdAt,
+  updatedAt: flashcards.updatedAt,
+} as const;
 
 function todayDateString(): string {
   return new Date().toISOString().slice(0, 10);
@@ -33,6 +53,9 @@ export function serializeFlashcard(card: FlashcardRecord) {
     deckId: card.deckId,
     question: card.question,
     answer: card.answer,
+    explanation: card.explanation,
+    hint: card.hint,
+    cardType: card.cardType,
     imageUrl: card.imageUrl,
     sortOrder: card.sortOrder,
     createdAt: card.createdAt.toISOString(),
@@ -77,16 +100,7 @@ async function assertCardOwnership(
 ): Promise<FlashcardRecord> {
   const db = getDb();
   const [row] = await db
-    .select({
-      id: flashcards.id,
-      deckId: flashcards.deckId,
-      question: flashcards.question,
-      answer: flashcards.answer,
-      imageUrl: flashcards.imageUrl,
-      sortOrder: flashcards.sortOrder,
-      createdAt: flashcards.createdAt,
-      updatedAt: flashcards.updatedAt,
-    })
+    .select(flashcardColumns)
     .from(flashcards)
     .innerJoin(decks, eq(decks.id, flashcards.deckId))
     .where(and(eq(flashcards.id, cardId), eq(decks.userId, userId)))
@@ -107,16 +121,7 @@ export async function listCardsForDeck(
 
   const db = getDb();
   return db
-    .select({
-      id: flashcards.id,
-      deckId: flashcards.deckId,
-      question: flashcards.question,
-      answer: flashcards.answer,
-      imageUrl: flashcards.imageUrl,
-      sortOrder: flashcards.sortOrder,
-      createdAt: flashcards.createdAt,
-      updatedAt: flashcards.updatedAt,
-    })
+    .select(flashcardColumns)
     .from(flashcards)
     .where(eq(flashcards.deckId, deckId))
     .orderBy(asc(flashcards.sortOrder), asc(flashcards.createdAt));
@@ -138,19 +143,13 @@ export async function createCardForDeck(
       deckId,
       question: input.question,
       answer: input.answer,
+      explanation: input.explanation ?? null,
+      hint: input.hint ?? null,
+      cardType: input.cardType ?? "basic",
       imageUrl: input.imageUrl ?? null,
       sortOrder,
     })
-    .returning({
-      id: flashcards.id,
-      deckId: flashcards.deckId,
-      question: flashcards.question,
-      answer: flashcards.answer,
-      imageUrl: flashcards.imageUrl,
-      sortOrder: flashcards.sortOrder,
-      createdAt: flashcards.createdAt,
-      updatedAt: flashcards.updatedAt,
-    });
+    .returning(flashcardColumns);
 
   if (!created) {
     throw new AppError(500, "Failed to create card");
@@ -181,20 +180,14 @@ export async function createCardsBulkForDeck(
         deckId,
         question: card.question,
         answer: card.answer,
+        explanation: card.explanation ?? null,
+        hint: card.hint ?? null,
+        cardType: card.cardType ?? "basic",
         imageUrl: card.imageUrl ?? null,
         sortOrder: startOrder + index,
       })),
     )
-    .returning({
-      id: flashcards.id,
-      deckId: flashcards.deckId,
-      question: flashcards.question,
-      answer: flashcards.answer,
-      imageUrl: flashcards.imageUrl,
-      sortOrder: flashcards.sortOrder,
-      createdAt: flashcards.createdAt,
-      updatedAt: flashcards.updatedAt,
-    });
+    .returning(flashcardColumns);
 
   await createReviewRows(
     userId,
@@ -222,20 +215,16 @@ export async function updateCardForUser(
     .set({
       ...(input.question !== undefined ? { question: input.question } : {}),
       ...(input.answer !== undefined ? { answer: input.answer } : {}),
+      ...(input.explanation !== undefined
+        ? { explanation: input.explanation }
+        : {}),
+      ...(input.hint !== undefined ? { hint: input.hint } : {}),
+      ...(input.cardType !== undefined ? { cardType: input.cardType } : {}),
       ...(input.imageUrl !== undefined ? { imageUrl: input.imageUrl } : {}),
       updatedAt: new Date(),
     })
     .where(eq(flashcards.id, cardId))
-    .returning({
-      id: flashcards.id,
-      deckId: flashcards.deckId,
-      question: flashcards.question,
-      answer: flashcards.answer,
-      imageUrl: flashcards.imageUrl,
-      sortOrder: flashcards.sortOrder,
-      createdAt: flashcards.createdAt,
-      updatedAt: flashcards.updatedAt,
-    });
+    .returning(flashcardColumns);
 
   if (!updated) {
     throw new AppError(404, "Card not found");

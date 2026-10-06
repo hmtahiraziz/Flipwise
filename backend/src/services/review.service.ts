@@ -92,6 +92,9 @@ export async function getReviewQueueForUser(
       deckId: flashcards.deckId,
       question: flashcards.question,
       answer: flashcards.answer,
+      explanation: flashcards.explanation,
+      hint: flashcards.hint,
+      cardType: flashcards.cardType,
       imageUrl: flashcards.imageUrl,
       sortOrder: flashcards.sortOrder,
       cardCreatedAt: flashcards.createdAt,
@@ -116,6 +119,9 @@ export async function getReviewQueueForUser(
       deckId: row.deckId,
       question: row.question,
       answer: row.answer,
+      explanation: row.explanation,
+      hint: row.hint,
+      cardType: row.cardType,
       imageUrl: row.imageUrl,
       sortOrder: row.sortOrder,
       createdAt: row.cardCreatedAt,
@@ -140,6 +146,7 @@ export async function rateCardForUser(
   userId: string,
   cardId: string,
   rating: EaseRating,
+  minutesStudied = 0,
 ): Promise<RateCardResult> {
   const quality = easeRatingToQuality[rating];
   if (quality === undefined) {
@@ -158,6 +165,9 @@ export async function rateCardForUser(
       deckId: flashcards.deckId,
       question: flashcards.question,
       answer: flashcards.answer,
+      explanation: flashcards.explanation,
+      hint: flashcards.hint,
+      cardType: flashcards.cardType,
       imageUrl: flashcards.imageUrl,
       sortOrder: flashcards.sortOrder,
       cardCreatedAt: flashcards.createdAt,
@@ -205,7 +215,7 @@ export async function rateCardForUser(
     .set({ updatedAt: sql`now()` })
     .where(eq(decks.id, existing.deckId));
 
-  await recordStudyActivity(userId);
+  await recordStudyActivity(userId, minutesStudied);
 
   return {
     card: {
@@ -213,6 +223,9 @@ export async function rateCardForUser(
       deckId: existing.deckId,
       question: existing.question,
       answer: existing.answer,
+      explanation: existing.explanation,
+      hint: existing.hint,
+      cardType: existing.cardType,
       imageUrl: existing.imageUrl,
       sortOrder: existing.sortOrder,
       createdAt: existing.cardCreatedAt,

@@ -1,20 +1,18 @@
 import {useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {layout, spacing} from '../config/theme';
 import {libraryTokens} from '../config/libraryTokens';
 
-const DEFAULT_PADDING = 20;
-const MAX_CONTENT_WIDTH = 672;
-
-export function useScreenLayout(maxWidth = MAX_CONTENT_WIDTH) {
+export function useScreenLayout(maxWidth: number = layout.contentMaxWidthTablet) {
   const {width, height} = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
   const isNarrow = width < 360;
   const isCompact = width < 400;
-  const isWide = width >= 640;
+  const isWide = width >= layout.tabletBreakpoint;
   const isTablet = width >= 768;
 
-  const horizontalPadding = isNarrow ? 16 : DEFAULT_PADDING;
+  const horizontalPadding = isWide ? spacing.xl : spacing.md;
   const contentMaxWidth = Math.min(maxWidth, width - horizontalPadding * 2);
   const footerBottom = Math.max(insets.bottom, 12) + 16;
   const tabBarClearance = libraryTokens.navBarClearance;
@@ -39,14 +37,14 @@ export function useScreenLayout(maxWidth = MAX_CONTENT_WIDTH) {
 }
 
 export function contentContainerStyle(
-  layout: ReturnType<typeof useScreenLayout>,
+  layoutResult: ReturnType<typeof useScreenLayout>,
   extraBottom = 0,
 ) {
   return {
-    paddingHorizontal: layout.horizontalPadding,
-    paddingTop: layout.isTablet ? 32 : 24,
+    paddingHorizontal: layoutResult.horizontalPadding,
+    paddingTop: layoutResult.isTablet ? 32 : 16,
     paddingBottom: extraBottom,
-    maxWidth: layout.contentMaxWidth,
+    maxWidth: layoutResult.contentMaxWidth,
     width: '100%' as const,
     alignSelf: 'center' as const,
   };

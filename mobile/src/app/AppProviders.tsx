@@ -11,6 +11,7 @@ import {ErrorBoundary} from '../components/ui/ErrorBoundary';
 import {AppToast} from '../components/ui/Toast';
 import {clerkPublishableKey, isClerkConfigured} from '../config/clerk';
 import {ConfigErrorScreen} from '../screens/auth/ConfigErrorScreen';
+import {ThemeProvider} from '../theme/ThemeProvider';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,13 +76,15 @@ export function AppProviders({children}: AppProvidersProps) {
             hung — and blocked RootNavigator (and its logs) from mounting.
           */}
           <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
-            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-            <QueryClientProvider client={queryClient}>
-              <ClerkBootProbe />
-              <ClerkTokenBridge />
-              {children}
-              <AppToast />
-            </QueryClientProvider>
+            <ThemeProvider>
+              <StatusBar barStyle="dark-content" backgroundColor="#F7F8F4" />
+              <QueryClientProvider client={queryClient}>
+                <ClerkBootProbe />
+                <ClerkTokenBridge />
+                {children}
+                <AppToast />
+              </QueryClientProvider>
+            </ThemeProvider>
           </ClerkProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>

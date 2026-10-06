@@ -18,23 +18,23 @@ export function OnboardingScreen() {
   const slides = useMemo<OnboardingSlideData[]>(
     () => [
       {
-        id: 'welcome',
-        showBrand: true,
-        headline: 'Welcome to Flipwise',
-        body: 'AI-powered flashcards that adapt to how you learn. Study smarter, retain more, and master any subject with personalized spaced-repetition.',
-        cardIcon: 'downloading',
-      },
-      {
         id: 'generate',
-        headline: 'Generate in seconds',
-        body: 'Turn notes, PDFs, or topics into study-ready cards with AI — no manual entry required.',
+        showBrand: true,
+        headline: 'Create cards with AI',
+        body: 'Turn topics, notes, or PDFs into high-yield flashcards in seconds — then edit before you save.',
         cardIcon: 'auto-awesome',
       },
       {
         id: 'remember',
-        headline: 'Remember for good',
-        body: 'Spaced repetition schedules reviews when you need them, so knowledge sticks long after your first session.',
+        headline: 'Spaced repetition that sticks',
+        body: 'Rate cards Again, Hard, Good, or Easy. Flipwise schedules the next review so memory compounds over time.',
         cardIcon: 'schedule',
+      },
+      {
+        id: 'progress',
+        headline: 'Track real progress',
+        body: 'Streaks, mastery, and daily goals keep you accountable — so you always know what to study next.',
+        cardIcon: 'insights',
       },
     ],
     [],

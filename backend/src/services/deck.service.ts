@@ -9,6 +9,9 @@ export type DeckRecord = {
   subject: string;
   description: string | null;
   coverImageUrl: string | null;
+  examDate: string | null;
+  isFavorite: boolean;
+  tags: string | null;
   isArchived: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -25,11 +28,39 @@ export type CreateDeckInput = {
   subject: string;
   description?: string;
   coverImageUrl?: string;
+  examDate?: string | null;
+  isFavorite?: boolean;
+  tags?: string[] | null;
 };
 
 export type UpdateDeckInput = Partial<
   CreateDeckInput & { isArchived?: boolean }
 >;
+
+function serializeTags(tags: string[] | null | undefined): string | null {
+  if (tags === undefined || tags === null) {
+    return null;
+  }
+  return JSON.stringify(tags);
+}
+
+function parseTags(tags: string | null): string[] | null {
+  if (!tags) {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(tags);
+    if (
+      Array.isArray(parsed) &&
+      parsed.every((item) => typeof item === "string")
+    ) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 function deckSelectFields() {
   return {
@@ -38,6 +69,9 @@ function deckSelectFields() {
     subject: decks.subject,
     description: decks.description,
     coverImageUrl: decks.coverImageUrl,
+    examDate: decks.examDate,
+    isFavorite: decks.isFavorite,
+    tags: decks.tags,
     isArchived: decks.isArchived,
     createdAt: decks.createdAt,
     updatedAt: decks.updatedAt,
@@ -66,6 +100,9 @@ function deckGroupBy() {
     decks.subject,
     decks.description,
     decks.coverImageUrl,
+    decks.examDate,
+    decks.isFavorite,
+    decks.tags,
     decks.isArchived,
     decks.createdAt,
     decks.updatedAt,
@@ -79,6 +116,9 @@ export function serializeDeck(deck: DeckRecord) {
     subject: deck.subject,
     description: deck.description,
     coverImageUrl: deck.coverImageUrl,
+    examDate: deck.examDate,
+    isFavorite: deck.isFavorite,
+    tags: parseTags(deck.tags),
     isArchived: deck.isArchived,
     cardCount: deck.cardCount,
     dueCount: deck.dueCount,
@@ -149,6 +189,9 @@ export async function createDeckForUser(
       subject: input.subject,
       description: input.description ?? null,
       coverImageUrl: input.coverImageUrl ?? null,
+      examDate: input.examDate ?? null,
+      isFavorite: input.isFavorite ?? false,
+      tags: input.tags !== undefined ? serializeTags(input.tags) : null,
     })
     .returning({ id: decks.id });
 
@@ -177,6 +220,9 @@ export async function updateDeckForUser(
       ...(input.coverImageUrl !== undefined
         ? { coverImageUrl: input.coverImageUrl }
         : {}),
+      ...(input.examDate !== undefined ? { examDate: input.examDate } : {}),
+      ...(input.isFavorite !== undefined ? { isFavorite: input.isFavorite } : {}),
+      ...(input.tags !== undefined ? { tags: serializeTags(input.tags) } : {}),
       ...(input.isArchived !== undefined ? { isArchived: input.isArchived } : {}),
       updatedAt: new Date(),
     })

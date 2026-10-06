@@ -9,13 +9,18 @@ import {BlurSurface} from '../ui/BlurSurface';
 type GenerateReviewHeaderProps = {
   onBack: () => void;
   title?: string;
+  subtitle?: string;
+  /** Use close icon instead of back arrow (modal-style editors). */
+  closeIcon?: boolean;
   right?: ReactNode;
 };
 
-/** Glass app bar — matches review cards HTML mockup (#F5F6F3 blur). */
+/** Glass app bar — Electric Repetition / Stitch. */
 export function GenerateReviewHeader({
   onBack,
   title = 'Review cards',
+  subtitle,
+  closeIcon = false,
   right,
 }: GenerateReviewHeaderProps) {
   const insets = useSafeAreaInsets();
@@ -34,11 +39,12 @@ export function GenerateReviewHeader({
         style={{
           minHeight: 64,
           paddingHorizontal: libraryTokens.containerPadding,
+          gap: 8,
         }}>
         <Pressable
           onPress={onBack}
           hitSlop={8}
-          accessibilityLabel="Go back"
+          accessibilityLabel={closeIcon ? 'Close' : 'Go back'}
           accessibilityRole="button"
           className="active:scale-95"
           style={{
@@ -46,25 +52,51 @@ export function GenerateReviewHeader({
             height: 40,
             alignItems: 'flex-start',
             justifyContent: 'center',
+            flexShrink: 0,
           }}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.onSurface} />
+          <MaterialIcons
+            name={closeIcon ? 'close' : 'arrow-back'}
+            size={24}
+            color={colors.onSurface}
+          />
         </Pressable>
 
-        <Text
-          style={{
-            fontFamily: fonts.display,
-            fontSize: 18,
-            lineHeight: 24,
-            fontWeight: '600',
-            color: colors.onSurface,
-            textAlign: 'center',
-            flex: 1,
-          }}
-          numberOfLines={1}>
-          {title}
-        </Text>
+        <View style={{flex: 1, minWidth: 0}}>
+          <Text
+            style={{
+              fontFamily: fonts.displaySemiBold,
+              fontSize: 18,
+              lineHeight: 24,
+              color: colors.onSurface,
+            }}
+            numberOfLines={1}>
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text
+              style={{
+                fontFamily: fonts.bodyBold,
+                fontSize: 11,
+                letterSpacing: 0.6,
+                textTransform: 'uppercase',
+                color: libraryTokens.primary,
+                marginTop: 1,
+              }}
+              numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
 
-        <View style={{width: 40, alignItems: 'flex-end'}}>{right}</View>
+        <View
+          style={{
+            flexShrink: 0,
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            minWidth: 40,
+          }}>
+          {right}
+        </View>
       </View>
     </BlurSurface>
   );

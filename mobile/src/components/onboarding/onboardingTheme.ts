@@ -1,18 +1,20 @@
-/** Calm Intelligence tokens for onboarding (Stitch). */
+/** Onboarding tokens — Electric Repetition. */
+import {brandColors, lightColors} from '../../config/theme';
+
 export const onboarding = {
-  background: '#FFFFFF',
-  onSurface: '#191C1F',
-  dotActive: '#1E2124',
-  muted: '#6B7280',
-  primaryContainer: '#C6F135',
-  primary: '#516600',
-  surfaceContainer: '#ECEEF2',
-  border: '#E5E7EB',
-  silhouette: '#F7F8F5',
+  background: brandColors.background,
+  onSurface: brandColors.charcoal,
+  dotActive: brandColors.charcoal,
+  muted: brandColors.muted,
+  primaryContainer: brandColors.lime,
+  primary: lightColors.primary,
+  surfaceContainer: lightColors.surfaceContainer,
+  border: brandColors.border,
+  silhouette: brandColors.background,
 } as const;
 
 export const ONBOARDING = {
-  containerPadding: 20,
+  containerPadding: 16,
   headerHeight: 64,
   footerPaddingBottom: 40,
   footerGap: 32,
@@ -21,7 +23,7 @@ export const ONBOARDING = {
   contentMaxWidth: 448,
   cardMaxWidth: 280,
   cardAspectRatio: 180 / 280,
-  sectionGap: 32,
+  sectionGap: 24,
   elementGap: 16,
   logoSize: 80,
   logoRadius: 12,

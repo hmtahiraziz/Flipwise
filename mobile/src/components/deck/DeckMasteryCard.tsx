@@ -6,66 +6,142 @@ import {deckDetailTokens} from '../../config/deckDetailTokens';
 type DeckMasteryCardProps = {
   masteryPercent: number;
   totalCards: number;
+  dueCount?: number;
+  lateCount?: number;
 };
 
-export function DeckMasteryCard({masteryPercent, totalCards}: DeckMasteryCardProps) {
+function masteryLabel(percent: number): string {
+  if (percent >= 80) return 'Solid retention';
+  if (percent >= 55) return 'Building strength';
+  if (percent >= 25) return 'Needs attention';
+  return 'Fresh deck';
+}
+
+export function DeckMasteryCard({
+  masteryPercent,
+  totalCards,
+  dueCount = 0,
+  lateCount = 0,
+}: DeckMasteryCardProps) {
   const clamped = Math.min(100, Math.max(0, masteryPercent));
+  const masteredApprox = Math.round((clamped / 100) * totalCards);
 
   return (
-    <View style={{gap: 24}}>
-      <Text
+    <View style={{gap: 12}}>
+      <View
         style={{
-          fontFamily: fonts.display,
-          fontSize: 20,
-          lineHeight: 28,
-          fontWeight: '800',
-          color: deckDetailTokens.ink,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
         }}>
-        Mastery Progress
-      </Text>
+        <Text
+          style={{
+            fontFamily: fonts.displaySemiBold,
+            fontSize: 18,
+            color: deckDetailTokens.ink,
+          }}>
+          Retention Health
+        </Text>
+        <Text
+          style={{
+            fontFamily: fonts.bodyBold,
+            fontSize: 12,
+            color: deckDetailTokens.primary,
+          }}>
+          {masteryLabel(clamped)}
+        </Text>
+      </View>
 
       <View
         style={{
           backgroundColor: deckDetailTokens.surfaceContainer,
           borderRadius: deckDetailTokens.cardRadius,
           borderWidth: 1,
-          borderColor: deckDetailTokens.border,
-          padding: 24,
-          shadowColor: '#000',
-          shadowOffset: {width: 0, height: 1},
-          shadowOpacity: 0.04,
-          shadowRadius: 4,
-          elevation: 1,
+          borderColor: deckDetailTokens.borderSubtle,
+          padding: 18,
+          gap: 14,
         }}>
-        <View className="flex-row items-end justify-between mb-4">
-          <View className="flex-row items-center" style={{gap: 8}}>
-            <MaterialIcons name="trending-up" size={20} color={deckDetailTokens.brand} />
-            <Text
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+          }}>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+            <View
               style={{
-                fontFamily: fonts.bodySemiBold,
-                fontSize: 18,
-                lineHeight: 24,
-                color: deckDetailTokens.ink,
+                width: 32,
+                height: 32,
+                borderRadius: 10,
+                backgroundColor: deckDetailTokens.brand,
+                alignItems: 'center',
+                justifyContent: 'center',
               }}>
-              {clamped}% mastered
-            </Text>
+              <MaterialIcons
+                name="trending-up"
+                size={18}
+                color={deckDetailTokens.ink}
+              />
+            </View>
+            <View>
+              <Text
+                style={{
+                  fontFamily: fonts.display,
+                  fontSize: 28,
+                  lineHeight: 32,
+                  fontWeight: '800',
+                  color: deckDetailTokens.ink,
+                }}>
+                {clamped}%
+              </Text>
+              <Text
+                style={{
+                  fontFamily: fonts.body,
+                  fontSize: 12,
+                  color: deckDetailTokens.mutedText,
+                }}>
+                ~{masteredApprox} of {totalCards} cards strong
+              </Text>
+            </View>
           </View>
-          <Text
-            style={{
-              fontFamily: fonts.bodySemiBold,
-              fontSize: 14,
-              lineHeight: 20,
-              color: deckDetailTokens.mutedText,
-            }}>
-            {totalCards} cards total
-          </Text>
+          <View style={{alignItems: 'flex-end', gap: 4}}>
+            {dueCount > 0 ? (
+              <Text
+                style={{
+                  fontFamily: fonts.bodyBold,
+                  fontSize: 12,
+                  color: deckDetailTokens.ink,
+                }}>
+                {dueCount} due
+              </Text>
+            ) : (
+              <Text
+                style={{
+                  fontFamily: fonts.bodyBold,
+                  fontSize: 12,
+                  color: deckDetailTokens.primary,
+                }}>
+                Caught up
+              </Text>
+            )}
+            {lateCount > 0 ? (
+              <Text
+                style={{
+                  fontFamily: fonts.body,
+                  fontSize: 11,
+                  color: deckDetailTokens.error,
+                }}>
+                {lateCount} overdue
+              </Text>
+            ) : null}
+          </View>
         </View>
 
         <View
           style={{
-            height: 12,
+            height: 10,
             borderRadius: 999,
-            backgroundColor: '#F1F5F9',
+            backgroundColor: deckDetailTokens.surfaceWarm,
             overflow: 'hidden',
           }}>
           <View
@@ -77,6 +153,17 @@ export function DeckMasteryCard({masteryPercent, totalCards}: DeckMasteryCardPro
             }}
           />
         </View>
+
+        <Text
+          style={{
+            fontFamily: fonts.body,
+            fontSize: 12,
+            lineHeight: 16,
+            color: deckDetailTokens.mutedText,
+          }}>
+          SM-2 spaced repetition schedules the next review based on how well you
+          recall each card.
+        </Text>
       </View>
     </View>
   );

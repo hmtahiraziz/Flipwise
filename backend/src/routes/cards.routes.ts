@@ -15,6 +15,7 @@ import {
 import { getDeckForUser } from "../services/deck.service";
 import {
   buildImportResult,
+  extractTextFromImage,
   extractTextFromPdf,
   extractTextFromUrl,
 } from "../services/import.service";
@@ -23,6 +24,9 @@ import { generateFlashcards } from "../services/llm.service";
 const cardBodySchema = z.object({
   question: z.string().trim().min(1, "Question is required").max(2000),
   answer: z.string().trim().min(1, "Answer is required").max(4000),
+  explanation: z.string().trim().max(4000).optional().nullable(),
+  hint: z.string().trim().max(1000).optional().nullable(),
+  cardType: z.string().trim().min(1).max(40).optional(),
   imageUrl: z.string().url().optional().nullable(),
 });
 
@@ -37,8 +41,11 @@ const generateSchema = z.object({
   tone: z
     .enum(["concise", "detailed", "child-friendly", "critical"])
     .default("concise"),
+  difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
+  cardFormat: z.enum(["qa", "cloze"]).default("qa"),
+  detailMode: z.enum(["concise", "examples"]).default("concise"),
+  language: z.string().trim().min(2).max(16).optional(),
 });
-
 const urlImportSchema = z.object({
   url: z.string().url("Valid URL is required").max(2000),
 });
@@ -52,6 +59,25 @@ const upload = multer({
       return;
     }
     cb(new Error("Only PDF files are supported"));
+  },
+});
+
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+    ].includes(file.mimetype);
+    if (ok) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error("Only JPEG, PNG, WEBP, or GIF images are supported"));
   },
 });
 
@@ -160,6 +186,31 @@ deckCardsRouter.post(
   },
 );
 
+deckCardsRouter.post(
+  "/import/image",
+  importLimiter,
+  imageUpload.single("file"),
+  async (req, res, next) => {
+    try {
+      const userId = getUserId(req);
+      const deckId = getDeckIdParam(req);
+      await getDeckForUser(userId, deckId);
+
+      if (!req.file?.buffer) {
+        throw new AppError(400, "Image file is required");
+      }
+
+      const content = await extractTextFromImage(
+        req.file.buffer,
+        req.file.mimetype || "image/jpeg",
+      );
+      res.json(buildImportResult(content));
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 deckCardsRouter.post("/import/url", importLimiter, async (req, res, next) => {
   try {
     const userId = getUserId(req);
@@ -185,6 +236,9 @@ cardsRouter.patch("/:id", async (req, res, next) => {
       (data) =>
         data.question !== undefined ||
         data.answer !== undefined ||
+        data.explanation !== undefined ||
+        data.hint !== undefined ||
+        data.cardType !== undefined ||
         data.imageUrl !== undefined,
       { message: "At least one field is required" },
     ).parse(req.body);
