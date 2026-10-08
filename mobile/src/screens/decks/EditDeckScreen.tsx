@@ -103,8 +103,16 @@ export function EditDeckScreen({navigation, route}: Props) {
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center" style={{backgroundColor: libraryTokens.background}}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View className="flex-1" style={{backgroundColor: libraryTokens.background}}>
+        <DeckDetailHeader
+          title="Edit deck"
+          titleColor={libraryTokens.ink}
+          backIconColor={libraryTokens.ink}
+          onBack={() => navigation.goBack()}
+        />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
       </View>
     );
   }
@@ -185,6 +193,7 @@ export function EditDeckScreen({navigation, route}: Props) {
           label="Save changes"
           saving={isSubmitting}
           disabled={!isDirty}
+          variant="create"
           onPress={() => void onSubmit()}
         />
       </View>

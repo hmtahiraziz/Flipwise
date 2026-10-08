@@ -158,7 +158,7 @@ export function QuizSessionScreen({navigation, route}: Props) {
             justifyContent: 'center',
             backgroundColor: quizTokens.surfaceLow,
           }}>
-          <MaterialIcons name="close" size={22} color={quizTokens.ink} />
+          <MaterialIcons name="arrow-back" size={22} color={quizTokens.ink} />
         </Pressable>
         <View style={{flex: 1, minWidth: 0}}>
           <Text
@@ -717,7 +717,7 @@ export function QuizSessionScreen({navigation, route}: Props) {
             className="active:opacity-95"
             style={{
               height: 56,
-              borderRadius: 16,
+              borderRadius: 999,
               backgroundColor: quizTokens.brand,
               flexDirection: 'row',
               alignItems: 'center',

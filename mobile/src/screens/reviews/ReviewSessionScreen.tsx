@@ -19,6 +19,7 @@ import {
   ReviewBackground,
   ReviewProgress,
 } from '../../components/review/FlipCard';
+import {ExplainAiSheet} from '../../components/review/ExplainAiSheet';
 import {RatingBar} from '../../components/review/RatingBar';
 import {ReviewSessionHeader} from '../../components/review/ReviewSessionHeader';
 import {Button} from '../../components/ui/Button';
@@ -29,12 +30,17 @@ import {reviewTokens} from '../../config/reviewTokens';
 import {getApiErrorMessage, isNetworkError} from '../../lib/errors';
 import {useReviewMutations, useReviewQueue} from '../../hooks/useReviews';
 import type {ReviewStackParamList} from '../../navigation/types';
+import {explainCard} from '../../services/api/reviewApi';
 import {
   localDataStorage,
   type UnfinishedSession,
 } from '../../storage/localDataStorage';
 import {useTheme} from '../../theme/ThemeProvider';
-import type {EaseRating, ReviewQueueItem} from '../../types/api';
+import type {
+  EaseRating,
+  ExplainCardResponse,
+  ReviewQueueItem,
+} from '../../types/api';
 
 type Props = NativeStackScreenProps<ReviewStackParamList, 'ReviewSession'>;
 
@@ -100,8 +106,14 @@ export function ReviewSessionScreen({navigation, route}: Props) {
   const [initPrompted, setInitPrompted] = useState(false);
   const [paused, setPaused] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [explainVisible, setExplainVisible] = useState(false);
+  const [explainLoading, setExplainLoading] = useState(false);
+  const [explainError, setExplainError] = useState<string | null>(null);
+  const [explainResult, setExplainResult] =
+    useState<ExplainCardResponse | null>(null);
   const pausedAtRef = useRef<number | null>(null);
   const pausedTotalRef = useRef(0);
+  const explainRequestRef = useRef(0);
 
   const sessionQueueRef = useRef(sessionQueue);
   const currentIndexRef = useRef(currentIndex);
@@ -290,9 +302,50 @@ export function ReviewSessionScreen({navigation, route}: Props) {
     toast.info('Session paused');
   }, [paused]);
 
-  const handleExplainAi = useCallback(() => {
-    toast.info('Coming soon', 'AI explanations will be available in a future update.');
+  const runExplainAi = useCallback(async (cardId: string) => {
+    const requestId = ++explainRequestRef.current;
+    setExplainVisible(true);
+    setExplainLoading(true);
+    setExplainError(null);
+    setExplainResult(null);
+    try {
+      const result = await explainCard(cardId);
+      if (requestId !== explainRequestRef.current) return;
+      setExplainResult(result);
+    } catch (err) {
+      if (requestId !== explainRequestRef.current) return;
+      setExplainError(
+        getApiErrorMessage(
+          err,
+          isNetworkError(err)
+            ? 'You appear to be offline. Check your connection and try again.'
+            : 'Could not generate an explanation. Please try again.',
+        ),
+      );
+    } finally {
+      if (requestId === explainRequestRef.current) {
+        setExplainLoading(false);
+      }
+    }
   }, []);
+
+  const handleExplainAi = useCallback(() => {
+    const cardId = sessionQueue[currentIndex]?.card.id;
+    if (!cardId || paused) return;
+    void runExplainAi(cardId);
+  }, [sessionQueue, currentIndex, paused, runExplainAi]);
+
+  const handleCloseExplain = useCallback(() => {
+    explainRequestRef.current += 1;
+    setExplainVisible(false);
+    setExplainLoading(false);
+    setExplainError(null);
+    setExplainResult(null);
+  }, []);
+
+  useEffect(() => {
+    handleCloseExplain();
+  }, [currentIndex, handleCloseExplain]);
 
   const handleReport = useCallback(() => {
     toast.info('Thanks', 'Issue flagged for this card.');
@@ -576,6 +629,7 @@ export function ReviewSessionScreen({navigation, route}: Props) {
               }}
               cardNumber={currentIndex + 1}
               reducedMotion={reducedMotion}
+              explainLoading={explainLoading}
               onExplainAi={handleExplainAi}
               onReport={handleReport}
             />
@@ -640,6 +694,19 @@ export function ReviewSessionScreen({navigation, route}: Props) {
           </Text>
         </Pressable>
       </View>
+
+      <ExplainAiSheet
+        visible={explainVisible}
+        loading={explainLoading}
+        error={explainError}
+        result={explainResult}
+        question={currentItem.card.question}
+        onClose={handleCloseExplain}
+        onRetry={() => {
+          const cardId = currentItem.card.id;
+          if (cardId) void runExplainAi(cardId);
+        }}
+      />
     </View>
   );
 }
