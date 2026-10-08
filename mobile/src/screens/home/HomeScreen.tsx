@@ -920,7 +920,7 @@ export function HomeScreen({navigation}: Props) {
                 className="active:opacity-90 flex-row items-center justify-center"
                 style={{
                   minHeight: 48,
-                  borderRadius: 16,
+                  borderRadius: 999,
                   backgroundColor: brandColors.lime,
                   gap: 8,
                 }}>

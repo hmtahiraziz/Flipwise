@@ -34,7 +34,7 @@ export function AuthPrimaryButton({
       <View
         style={{
           height: layout.buttonHeight,
-          borderRadius: layout.inputRadius,
+          borderRadius: 999,
           backgroundColor: authTheme.primaryContainer,
           flexDirection: 'row',
           alignItems: 'center',
