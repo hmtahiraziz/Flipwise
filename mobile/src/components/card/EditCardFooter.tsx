@@ -64,7 +64,7 @@ export function EditCardFooter({
             minHeight: 48,
             alignItems: 'center',
             justifyContent: 'center',
-            borderRadius: 14,
+            borderRadius: 999,
             backgroundColor: libraryTokens.surface,
             borderWidth: 1,
             borderColor: libraryTokens.border,
@@ -93,7 +93,7 @@ export function EditCardFooter({
             alignItems: 'center',
             justifyContent: 'center',
             gap: 8,
-            borderRadius: 14,
+            borderRadius: 999,
             backgroundColor: libraryTokens.primaryContainer,
             opacity: busy ? 0.75 : 1,
           }}>

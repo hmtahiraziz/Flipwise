@@ -118,7 +118,7 @@ export function EmailVerificationScreen({navigation, route}: Props) {
   }, [isSignUp, signIn, signInLoaded, signUp, signUpLoaded]);
 
   return (
-    <AuthScreenShell>
+    <AuthScreenShell onBack={() => navigation.goBack()}>
       <AuthBrandHeader
         showTagline={false}
         headline="Verify your email"
@@ -160,19 +160,6 @@ export function EmailVerificationScreen({navigation, route}: Props) {
           </Text>
         </Pressable>
       </AuthFormCard>
-
-      <Pressable
-        onPress={() => navigation.goBack()}
-        style={{marginTop: layout.footerMarginTop, alignItems: 'center', paddingVertical: 8}}>
-        <Text
-          style={{
-            fontFamily: fonts.bodySemiBold,
-            fontSize: layout.bodySize,
-            color: authTheme.primary,
-          }}>
-          Back
-        </Text>
-      </Pressable>
     </AuthScreenShell>
   );
 }

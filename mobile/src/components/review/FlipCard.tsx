@@ -1,4 +1,11 @@
-import {Pressable, ScrollView, Text, useWindowDimensions, View} from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
@@ -12,6 +19,7 @@ type FlipCardProps = {
   cardNumber?: number;
   cardType?: string;
   reducedMotion?: boolean;
+  explainLoading?: boolean;
   onExplainAi?: () => void;
   onReport?: () => void;
 };
@@ -32,6 +40,7 @@ export function FlipCard({
   onFlip,
   cardNumber,
   cardType = 'Concept Check',
+  explainLoading = false,
   onExplainAi,
   onReport,
 }: FlipCardProps) {
@@ -195,25 +204,37 @@ export function FlipCard({
               <Pressable
                 onPress={e => {
                   e.stopPropagation?.();
-                  onExplainAi?.();
+                  if (!explainLoading) onExplainAi?.();
                 }}
+                disabled={explainLoading}
                 accessibilityRole="button"
-                className="flex-row items-center active:opacity-80"
+                accessibilityState={{busy: explainLoading}}
+                className={`flex-row items-center active:opacity-80 ${
+                  explainLoading ? 'opacity-70' : ''
+                }`}
                 style={{
                   backgroundColor: brandColors.paleLime,
-                  borderRadius: 12,
-                  paddingHorizontal: 12,
-                  paddingVertical: 7,
+                  borderRadius: 999,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
                   gap: 6,
                 }}>
-                <MaterialIcons name="auto-awesome" size={14} color={brandColors.olive} />
+                {explainLoading ? (
+                  <ActivityIndicator size="small" color={brandColors.olive} />
+                ) : (
+                  <MaterialIcons
+                    name="auto-awesome"
+                    size={14}
+                    color={brandColors.olive}
+                  />
+                )}
                 <Text
                   style={{
                     fontFamily: fonts.bodyBold,
                     fontSize: 12,
                     color: brandColors.olive,
                   }}>
-                  Explain with AI
+                  {explainLoading ? 'Explaining…' : 'Explain with AI'}
                 </Text>
               </Pressable>
               <Pressable

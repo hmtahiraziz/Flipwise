@@ -46,10 +46,11 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
-      className={`rounded-button px-5 flex-row items-center justify-center ${variantClasses[variant]} ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`}
+      className={`px-5 flex-row items-center justify-center ${variantClasses[variant]} ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`}
       style={({pressed}) => [
         {
           minHeight: layout.ctaHeight,
+          borderRadius: 999,
           transform: [{scale: pressed && !isDisabled ? 0.98 : 1}],
         },
         typeof style === 'function' ? style({pressed}) : style,

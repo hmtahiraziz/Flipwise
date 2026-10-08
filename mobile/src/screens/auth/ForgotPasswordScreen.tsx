@@ -120,7 +120,7 @@ export function ForgotPasswordScreen({navigation, route}: Props) {
   }, [initialEmail, isLoaded, sendResetCode]);
 
   return (
-    <AuthScreenShell>
+    <AuthScreenShell onBack={() => navigation.goBack()}>
       <AuthBrandHeader
         showTagline={false}
         headline={step === 'email' ? 'Reset your password' : 'Create a new password'}
@@ -236,19 +236,6 @@ export function ForgotPasswordScreen({navigation, route}: Props) {
           </>
         )}
       </AuthFormCard>
-
-      <Pressable
-        onPress={() => navigation.navigate('EmailAuth', {mode: 'signIn'})}
-        style={{marginTop: layout.footerMarginTop, alignItems: 'center', paddingVertical: 8}}>
-        <Text
-          style={{
-            fontFamily: fonts.bodySemiBold,
-            fontSize: layout.bodySize,
-            color: authTheme.primary,
-          }}>
-          Back to login
-        </Text>
-      </Pressable>
     </AuthScreenShell>
   );
 }

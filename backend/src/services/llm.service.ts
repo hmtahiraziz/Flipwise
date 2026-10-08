@@ -4,11 +4,14 @@ import { getEnv } from "../config/env";
 import { AppError } from "../middleware/errorHandler";
 import { validateGeneratedCards } from "./cardValidation.service";
 import {
+  explainFlashcardSystemPrompt,
+  explainFlashcardUserPrompt,
   flashcardGenerationSystemPrompt,
   flashcardGenerationUserPrompt,
   flashcardRetryUserPrompt,
   truncateContent,
   type DeckPromptContext,
+  type ExplainFlashcardContext,
   type GenerationCardFormat,
   type GenerationDetailMode,
   type GenerationDifficulty,
@@ -237,5 +240,98 @@ export async function generateFlashcards(
   throw new AppError(
     502,
     "Could not generate flashcards. Please try again in a moment.",
+  );
+}
+
+const explainResultSchema = z.object({
+  explanation: z.string().trim().min(1).max(4000),
+  keyPoints: z.array(z.string().trim().min(1).max(200)).max(6).optional(),
+  analogy: z.string().trim().max(500).optional(),
+});
+
+export type ExplainFlashcardResult = z.infer<typeof explainResultSchema>;
+
+function extractJsonObject(raw: string): unknown {
+  const trimmed = raw.trim();
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenceMatch?.[1]?.trim() ?? trimmed;
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    const start = candidate.indexOf("{");
+    const end = candidate.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      return JSON.parse(candidate.slice(start, end + 1));
+    }
+    throw new AppError(502, "AI returned invalid JSON. Please try again.");
+  }
+}
+
+export async function explainFlashcard(
+  input: ExplainFlashcardContext,
+): Promise<ExplainFlashcardResult> {
+  const question = input.question.trim();
+  const answer = input.answer.trim();
+  if (!question || !answer) {
+    throw new AppError(400, "Question and answer are required");
+  }
+
+  const env = getEnv();
+  const openai = getOpenAI();
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const completion = await openai.chat.completions.create({
+        model: env.OPENAI_MODEL,
+        temperature: 0.4,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: explainFlashcardSystemPrompt() },
+          {
+            role: "user",
+            content: explainFlashcardUserPrompt({
+              ...input,
+              question,
+              answer,
+            }),
+          },
+        ],
+      });
+
+      const message = completion.choices[0]?.message?.content;
+      if (!message) {
+        throw new AppError(502, "AI returned an empty response. Please try again.");
+      }
+
+      const parsed = explainResultSchema.parse(extractJsonObject(message));
+      return {
+        explanation: parsed.explanation.replace(/\s+/g, " ").trim(),
+        keyPoints: (parsed.keyPoints ?? [])
+          .map((point) => point.replace(/\s+/g, " ").trim())
+          .filter(Boolean)
+          .slice(0, 4),
+        analogy: parsed.analogy?.replace(/\s+/g, " ").trim() || undefined,
+      };
+    } catch (error) {
+      lastError = error;
+      if (error instanceof AppError && error.statusCode < 500) {
+        throw error;
+      }
+      if (error instanceof z.ZodError) {
+        lastError = error;
+      }
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(400 * attempt);
+        continue;
+      }
+    }
+  }
+
+  console.error("Flashcard explain failed:", lastError);
+  throw new AppError(
+    502,
+    "Could not generate an explanation. Please try again in a moment.",
   );
 }

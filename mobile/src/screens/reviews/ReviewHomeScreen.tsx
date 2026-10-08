@@ -149,7 +149,7 @@ export function ReviewHomeScreen({navigation}: Props) {
                 alignSelf: 'flex-start',
                 paddingHorizontal: 16,
                 paddingVertical: 10,
-                borderRadius: 12,
+                borderRadius: 999,
                 backgroundColor: libraryTokens.surfaceContainerLow,
               }}>
               <Text
@@ -301,7 +301,7 @@ export function ReviewHomeScreen({navigation}: Props) {
                     className="active:opacity-95"
                     style={{
                       height: 52,
-                      borderRadius: 16,
+                      borderRadius: 999,
                       backgroundColor: libraryTokens.primaryContainer,
                       flexDirection: 'row',
                       alignItems: 'center',

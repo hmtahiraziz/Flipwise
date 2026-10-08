@@ -248,9 +248,11 @@ export function DeckListScreen({navigation}: Props) {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            void deleteDeck(deck.id).catch(err => {
-              toast.error('Could not delete deck', getApiErrorMessage(err));
-            });
+            void deleteDeck(deck.id)
+              .then(() => toast.success('Deck deleted'))
+              .catch(err => {
+                toast.error('Could not delete deck', getApiErrorMessage(err));
+              });
           },
         },
       ],
@@ -266,9 +268,11 @@ export function DeckListScreen({navigation}: Props) {
         {
           text: 'Archive',
           onPress: () => {
-            void updateDeck(deck.id, {isArchived: true}).catch(err => {
-              toast.error('Could not archive deck', getApiErrorMessage(err));
-            });
+            void updateDeck(deck.id, {isArchived: true})
+              .then(() => toast.success('Deck archived'))
+              .catch(err => {
+                toast.error('Could not archive deck', getApiErrorMessage(err));
+              });
           },
         },
       ],

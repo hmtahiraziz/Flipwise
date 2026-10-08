@@ -1,7 +1,4 @@
 # Environment / secrets
-.env
-.env.local
-.env.production
 .env.*.local
 
 # Android signing (never commit upload keys)
@@ -22,7 +19,6 @@ Thumbs.db
 
 # Editors
 .idea/
-.vscode/
 *.swp
 *.swo
 
@@ -32,3 +28,4 @@ node_modules/
 # Release artifacts copied outside android/build
 *.aab
 *.apk
+config.bat

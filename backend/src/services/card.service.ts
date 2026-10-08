@@ -94,7 +94,7 @@ async function createReviewRows(
   );
 }
 
-async function assertCardOwnership(
+export async function getCardForUser(
   userId: string,
   cardId: string,
 ): Promise<FlashcardRecord> {
@@ -111,6 +111,13 @@ async function assertCardOwnership(
   }
 
   return row;
+}
+
+async function assertCardOwnership(
+  userId: string,
+  cardId: string,
+): Promise<FlashcardRecord> {
+  return getCardForUser(userId, cardId);
 }
 
 export async function listCardsForDeck(

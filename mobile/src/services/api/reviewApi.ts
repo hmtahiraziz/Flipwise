@@ -1,6 +1,7 @@
 import {apiClient} from './client';
 import type {
   EaseRating,
+  ExplainCardResponse,
   RateCardResponse,
   ReviewQueueItem,
   ReviewQueueResponse,
@@ -26,6 +27,13 @@ export async function rateCard(
       rating,
       ...(durationMs !== undefined ? {durationMs} : {}),
     },
+  );
+  return data;
+}
+
+export async function explainCard(cardId: string): Promise<ExplainCardResponse> {
+  const {data} = await apiClient.post<ExplainCardResponse>(
+    `/api/reviews/${cardId}/explain`,
   );
   return data;
 }

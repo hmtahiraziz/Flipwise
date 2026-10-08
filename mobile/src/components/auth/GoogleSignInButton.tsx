@@ -88,7 +88,7 @@ export function GoogleSignInButton() {
       <View
         style={{
           height: buttonHeight,
-          borderRadius: layout.inputRadius,
+          borderRadius: 999,
           borderWidth: 1,
           borderColor: '#747775',
           backgroundColor: pressed ? '#F8F9FA' : '#FFFFFF',

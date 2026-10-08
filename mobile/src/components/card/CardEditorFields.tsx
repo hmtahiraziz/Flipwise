@@ -109,29 +109,6 @@ function FormatBar({compact}: {compact?: boolean}) {
               color={libraryTokens.muted}
             />
           </Pressable>
-          <View
-            style={{
-              width: 1,
-              height: 16,
-              backgroundColor: libraryTokens.border,
-              marginHorizontal: 4,
-            }}
-          />
-          <Pressable
-            accessibilityRole="button"
-            onPress={() =>
-              toast.info('Voice input', 'Microphone dictation is coming soon.')
-            }
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 6,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            className="active:opacity-70">
-            <MaterialIcons name="mic" size={18} color={libraryTokens.primary} />
-          </Pressable>
         </>
       ) : null}
     </View>

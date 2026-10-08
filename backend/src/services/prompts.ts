@@ -204,3 +204,44 @@ export function truncateContent(content: string, maxChars = 12000): string {
   if (content.length <= maxChars) return content;
   return `${content.slice(0, maxChars)}\n\n[Content truncated for length]`;
 }
+
+export type ExplainFlashcardContext = {
+  question: string;
+  answer: string;
+  explanation?: string | null;
+  hint?: string | null;
+  subject?: string;
+  deckTitle?: string;
+};
+
+export function explainFlashcardSystemPrompt(): string {
+  return `You are Flipwise, a clear and encouraging study coach. Explain flashcard answers so a student understands why the answer is correct and how to remember it.
+
+Rules:
+- Return ONLY valid JSON: { "explanation": "...", "keyPoints": ["...", "..."], "analogy": "..." }.
+- "explanation": 2–4 short sentences in plain language. No markdown fences.
+- "keyPoints": 2–4 bullet-ready phrases (max ~12 words each) that aid recall.
+- "analogy": one optional everyday analogy (1 sentence), or "" if none fits.
+- Stay faithful to the card. Do not invent unrelated facts.
+- No meta text ("As an AI…"), spoilers beyond the given answer, or exam cheating tips.`;
+}
+
+export function explainFlashcardUserPrompt(
+  input: ExplainFlashcardContext,
+): string {
+  const deckLine =
+    input.deckTitle || input.subject
+      ? `Deck: ${[input.deckTitle, input.subject].filter(Boolean).join(" · ")}\n`
+      : "";
+  const hintLine = input.hint?.trim() ? `Hint: ${input.hint.trim()}\n` : "";
+  const extraLine = input.explanation?.trim()
+    ? `Saved takeaway: ${input.explanation.trim()}\n`
+    : "";
+
+  return `${deckLine}Explain this flashcard for active recall practice.
+
+Question: ${input.question}
+Answer: ${input.answer}
+${hintLine}${extraLine}
+Return JSON: { "explanation": "...", "keyPoints": [...], "analogy": "..." }`;
+}
