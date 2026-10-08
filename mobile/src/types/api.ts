@@ -146,6 +146,12 @@ export type RateCardResponse = {
   };
 };
 
+export type ExplainCardResponse = {
+  explanation: string;
+  keyPoints?: string[];
+  analogy?: string;
+};
+
 export type ProgressSummary = {
   dueTodayCount: number;
   dueTomorrowCount: number;

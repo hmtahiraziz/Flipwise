@@ -149,7 +149,7 @@ export function SettingsScreen({navigation}: Props) {
   );
 
   return (
-    <View className="flex-1" style={{backgroundColor: colors.white}}>
+    <View className="flex-1" style={{backgroundColor: libraryTokens.background}}>
       <ProfileScreenHeader
         title="Settings"
         onBack={() => navigation.goBack()}
@@ -349,21 +349,6 @@ export function SettingsScreen({navigation}: Props) {
             value={preferences.quietHoursEnabled}
             onValueChange={value =>
               updatePreferences({quietHoursEnabled: value})
-            }
-          />
-          <SettingsCardDivider />
-          <SettingsDetailRow
-            label="Reminder window"
-            subtitle={
-              preferences.quietHoursEnabled
-                ? `Muted ${preferences.quietHoursStart}–${preferences.quietHoursEnd}`
-                : 'Notifications allowed all day'
-            }
-            onPress={() =>
-              toast.info(
-                'Quiet hours',
-                'Custom quiet-hour editing is coming soon. Toggle quiet hours above for now.',
-              )
             }
           />
         </SettingsSectionCard>

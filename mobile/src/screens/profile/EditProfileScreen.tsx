@@ -494,52 +494,86 @@ export function EditProfileScreen({navigation}: Props) {
       <View
         style={{
           paddingHorizontal: layout.horizontalPadding,
-          paddingTop: 16,
+          paddingTop: 12,
           paddingBottom: tabClearance,
           borderTopWidth: 1,
           borderTopColor: libraryTokens.borderSubtle,
-          backgroundColor: libraryTokens.background,
+          backgroundColor: 'rgba(249, 250, 246, 0.92)',
         }}>
-        <Pressable
-          onPress={() => void onSave()}
-          disabled={saving || uploadingAvatar}
-          accessibilityRole="button"
-          accessibilityLabel="Save changes"
-          className="active:opacity-90"
+        <View
           style={{
-            height: 56,
             flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            borderRadius: 14,
-            backgroundColor: libraryTokens.primaryContainer,
-            opacity: saving || uploadingAvatar ? 0.75 : 1,
+            gap: 12,
             maxWidth: libraryTokens.contentMaxWidthWide,
             width: '100%',
             alignSelf: 'center',
           }}>
-          {saving ? (
-            <ActivityIndicator
-              size="small"
-              color={libraryTokens.onPrimaryContainer}
-            />
-          ) : (
-            <MaterialIcons
-              name="check"
-              size={20}
-              color={libraryTokens.onPrimaryContainer}
-            />
-          )}
-          <Text
+          <Pressable
+            onPress={() => navigation.goBack()}
+            disabled={saving || uploadingAvatar}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+            className="active:opacity-90"
             style={{
-              fontFamily: fonts.bodyBold,
-              fontSize: 16,
-              color: libraryTokens.onPrimaryContainer,
+              flex: 1,
+              minHeight: 48,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 999,
+              backgroundColor: libraryTokens.surface,
+              borderWidth: 1,
+              borderColor: libraryTokens.border,
+              opacity: saving || uploadingAvatar ? 0.6 : 1,
             }}>
-            Save changes
-          </Text>
-        </Pressable>
+            <Text
+              style={{
+                fontFamily: fonts.bodySemiBold,
+                fontSize: 14,
+                color: libraryTokens.ink,
+              }}>
+              Cancel
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => void onSave()}
+            disabled={saving || uploadingAvatar}
+            accessibilityRole="button"
+            accessibilityLabel="Save changes"
+            className="active:opacity-90"
+            style={{
+              flex: 2,
+              minHeight: 52,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              borderRadius: 999,
+              backgroundColor: libraryTokens.primaryContainer,
+              opacity: saving || uploadingAvatar ? 0.75 : 1,
+            }}>
+            {saving ? (
+              <ActivityIndicator
+                size="small"
+                color={libraryTokens.onPrimaryContainer}
+              />
+            ) : (
+              <MaterialIcons
+                name="check"
+                size={20}
+                color={libraryTokens.onPrimaryContainer}
+              />
+            )}
+            <Text
+              style={{
+                fontFamily: fonts.bodyBold,
+                fontSize: 14,
+                color: libraryTokens.onPrimaryContainer,
+              }}>
+              Save changes
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );

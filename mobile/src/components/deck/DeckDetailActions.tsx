@@ -36,7 +36,7 @@ export function DeckDetailActions({
         className="active:scale-[0.98]"
         style={{
           backgroundColor: deckDetailTokens.brand,
-          borderRadius: 16,
+          borderRadius: 999,
           paddingVertical: compact ? 16 : 18,
           flexDirection: 'row',
           alignItems: 'center',
