@@ -47,7 +47,7 @@ export function GenerateReviewFooter({
             height: 48,
             alignItems: 'center',
             justifyContent: 'center',
-            borderRadius: 12,
+            borderRadius: 999,
             backgroundColor: brandColors.surface,
             borderWidth: 1,
             borderColor: libraryTokens.border,
@@ -72,7 +72,7 @@ export function GenerateReviewFooter({
           style={{
             flex: 1.6,
             height: 48,
-            borderRadius: 12,
+            borderRadius: 999,
             backgroundColor: brandColors.lime,
             gap: 6,
             opacity: saving ? 0.75 : 1,

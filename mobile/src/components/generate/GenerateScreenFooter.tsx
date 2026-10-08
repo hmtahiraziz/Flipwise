@@ -48,7 +48,7 @@ export function GenerateScreenFooter({
             style={{
               height: 48,
               paddingHorizontal: 20,
-              borderRadius: 16,
+              borderRadius: 999,
               borderWidth: 1,
               borderColor: libraryTokens.border,
               backgroundColor: libraryTokens.background,
@@ -76,7 +76,7 @@ export function GenerateScreenFooter({
           style={{
             flex: 1,
             height: 48,
-            borderRadius: 16,
+            borderRadius: 999,
             backgroundColor: brandColors.lime,
             gap: 8,
             opacity: disabled || generating ? 0.65 : 1,
