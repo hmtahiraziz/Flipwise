@@ -37,6 +37,47 @@ export function SettingsSignOutButton({onPress}: SettingsSignOutButtonProps) {
   );
 }
 
+type SettingsDeleteAccountButtonProps = {
+  onPress: () => void;
+  loading?: boolean;
+};
+
+export function SettingsDeleteAccountButton({
+  onPress,
+  loading,
+}: SettingsDeleteAccountButtonProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={loading}
+      accessibilityRole="button"
+      accessibilityLabel="Delete account"
+      accessibilityState={{disabled: Boolean(loading)}}
+      className="active:scale-[0.98]"
+      style={{
+        width: '100%',
+        paddingVertical: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: libraryTokens.error,
+        backgroundColor: libraryTokens.surface,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: loading ? 0.6 : 1,
+      }}>
+      <Text
+        style={{
+          fontFamily: fonts.bodySemiBold,
+          fontSize: 16,
+          lineHeight: 24,
+          color: libraryTokens.error,
+        }}>
+        {loading ? 'Deleting…' : 'Delete account'}
+      </Text>
+    </Pressable>
+  );
+}
+
 type SettingsGoogleRowProps = {
   connected: boolean;
   connecting?: boolean;

@@ -1,10 +1,16 @@
 import {useState} from 'react';
-import {Pressable, Text, TextInput, View} from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {createDeckTokens, type DeckAccentColor} from '../../config/createDeckTokens';
-import {colors, fonts} from '../../config/theme';
+import {brandColors, colors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 import {reviewTokens} from '../../config/reviewTokens';
-import {SilhouetteCard} from '../ui/SilhouetteCard';
 
 type FieldKey = 'title' | 'subject' | 'description';
 
@@ -21,6 +27,10 @@ type DeckEditorFieldsProps = {
   variant?: 'default' | 'create';
   accentColor?: DeckAccentColor;
   onAccentColorChange?: (color: DeckAccentColor) => void;
+  /** Shown inside the edit form card (not create). */
+  onDelete?: () => void;
+  deleting?: boolean;
+  autoFocusTitle?: boolean;
 };
 
 export function DeckEditorFields({
@@ -36,6 +46,9 @@ export function DeckEditorFields({
   variant = 'default',
   accentColor = createDeckTokens.accentSwatches[0],
   onAccentColorChange,
+  onDelete,
+  deleting = false,
+  autoFocusTitle = false,
 }: DeckEditorFieldsProps) {
   const [focusedField, setFocusedField] = useState<FieldKey | null>(null);
   const isCreate = variant === 'create';
@@ -90,6 +103,43 @@ export function DeckEditorFields({
 
   const formBody = (
     <View style={{padding: 20, gap: 16}}>
+      {onDelete && !isCreate ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+          <Text style={labelStyle}>Deck details</Text>
+          <Pressable
+            accessibilityLabel="Delete deck"
+            accessibilityRole="button"
+            onPress={onDelete}
+            disabled={deleting}
+            hitSlop={6}
+            className="active:opacity-80"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 999,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: brandColors.dangerBg,
+              opacity: deleting ? 0.6 : 1,
+            }}>
+            {deleting ? (
+              <ActivityIndicator size="small" color={brandColors.dangerIcon} />
+            ) : (
+              <MaterialIcons
+                name="delete-outline"
+                size={18}
+                color={brandColors.dangerIcon}
+              />
+            )}
+          </Pressable>
+        </View>
+      ) : null}
+
       <View style={{gap: 8}}>
         <Text style={labelStyle}>Title</Text>
         <TextInput
@@ -99,6 +149,8 @@ export function DeckEditorFields({
           placeholder="e.g. Biology midterm"
           placeholderTextColor={`${createDeckTokens.helperText}80`}
           autoCapitalize="sentences"
+          autoFocus={autoFocusTitle}
+          returnKeyType="next"
           onFocus={() => setFocusedField('title')}
           onBlur={() => setFocusedField(current => (current === 'title' ? null : current))}
         />
@@ -111,16 +163,20 @@ export function DeckEditorFields({
           style={singleLineStyle('subject', subjectError)}
           value={subject}
           onChangeText={onSubjectChange}
-          placeholder="e.g. React Native, Biology"
+          placeholder="e.g. Chemistry, History"
           placeholderTextColor={`${createDeckTokens.helperText}80`}
           autoCapitalize="words"
+          returnKeyType="next"
           onFocus={() => setFocusedField('subject')}
           onBlur={() => setFocusedField(current => (current === 'subject' ? null : current))}
         />
         {fieldError(subjectError)}
+      </View>
 
-        {isCreate && onAccentColorChange ? (
-          <View className="flex-row" style={{gap: 12, marginTop: 4, paddingHorizontal: 4}}>
+      {isCreate && onAccentColorChange ? (
+        <View style={{gap: 8}}>
+          <Text style={labelStyle}>Accent color</Text>
+          <View className="flex-row" style={{gap: 12, paddingHorizontal: 2}}>
             {createDeckTokens.accentSwatches.map(color => {
               const selected = accentColor === color;
               return (
@@ -128,33 +184,33 @@ export function DeckEditorFields({
                   key={color}
                   onPress={() => onAccentColorChange(color)}
                   accessibilityRole="button"
-                  accessibilityLabel="Accent color"
+                  accessibilityLabel={`Accent ${color}`}
                   accessibilityState={{selected}}
                   style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 14,
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
                     alignItems: 'center',
                     justifyContent: 'center',
                     borderWidth: selected ? 2 : 0,
-                    borderColor: selected ? color : 'transparent',
+                    borderColor: brandColors.charcoal,
                   }}>
                   <View
                     style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 12,
+                      width: selected ? 22 : 26,
+                      height: selected ? 22 : 26,
+                      borderRadius: 13,
                       backgroundColor: color,
-                      borderWidth: 2,
-                      borderColor: libraryTokens.surface,
+                      borderWidth: color === '#F7F8F5' ? 1 : 0,
+                      borderColor: libraryTokens.border,
                     }}
                   />
                 </Pressable>
               );
             })}
           </View>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
 
       <View style={{gap: 8}}>
         <Text style={labelStyle}>Description (optional)</Text>
@@ -175,48 +231,17 @@ export function DeckEditorFields({
     </View>
   );
 
-  if (isCreate) {
-    return (
-      <View style={{position: 'relative'}}>
-        <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            top: 4,
-            left: 4,
-            right: -4,
-            bottom: -4,
-            borderRadius: createDeckTokens.cardRadius,
-            backgroundColor: createDeckTokens.inputBg,
-            zIndex: 0,
-          }}
-        />
-        <View
-          style={{
-            position: 'relative',
-            zIndex: 1,
-            borderRadius: createDeckTokens.cardRadius,
-            backgroundColor: libraryTokens.surface,
-            overflow: 'hidden',
-            ...createDeckTokens.cardShadow,
-          }}>
-          {formBody}
-        </View>
-      </View>
-    );
-  }
-
+  // Flat surface card — no outer border / drop shadow (matches Edit Card / Generate).
   return (
-    <SilhouetteCard variant="review">
-      <View
-        style={{
-          borderRadius: reviewTokens.cardRadius,
-          borderWidth: 1,
-          borderColor: reviewTokens.border,
-          backgroundColor: reviewTokens.card,
-        }}>
-        {formBody}
-      </View>
-    </SilhouetteCard>
+    <View
+      style={{
+        borderRadius: isCreate
+          ? createDeckTokens.cardRadius
+          : reviewTokens.cardRadius,
+        backgroundColor: libraryTokens.surface,
+        overflow: 'hidden',
+      }}>
+      {formBody}
+    </View>
   );
 }

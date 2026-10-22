@@ -1,6 +1,6 @@
 import {createSafeMMKV} from './createSafeMMKV';
 
-const storage = createSafeMMKV('flipwise-app');
+const storage = createSafeMMKV('cardweave-app');
 
 const KEYS = {
   hasCompletedOnboarding: 'hasCompletedOnboarding',

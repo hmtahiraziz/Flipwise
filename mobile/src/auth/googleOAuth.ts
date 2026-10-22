@@ -5,11 +5,15 @@ import * as WebBrowser from 'expo-web-browser';
  * Required on iOS/Android so expo-web-browser returns OAuth control to the app.
  * ClerkProvider only calls this on web — native must invoke it at startup.
  */
-WebBrowser.maybeCompleteAuthSession();
+try {
+  WebBrowser.maybeCompleteAuthSession();
+} catch {
+  // Native module may be unavailable until a full rebuild.
+}
 
 /** Must match Clerk Dashboard → Native applications → SSO redirect allowlist. */
 export const googleOAuthRedirectUrl = AuthSession.makeRedirectUri({
-  scheme: 'flipwise',
+  scheme: 'cardweave',
   path: 'oauth-native-callback',
 });
 

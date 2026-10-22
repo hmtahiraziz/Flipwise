@@ -15,18 +15,21 @@ import {useAppUser} from '../../hooks/useAppUser';
 import {useDecks} from '../../hooks/useDecks';
 import {useLibraryLayout} from '../../hooks/useLibraryLayout';
 import {useProfileNavigation} from '../../hooks/useProfileNavigation';
+import {useProfileStackBack} from '../../hooks/useProfileStackBack';
 import {useProgressSummary} from '../../hooks/useProgress';
 import {useReviewQueue} from '../../hooks/useReviews';
-import {preferencesStorage} from '../../storage/preferencesStorage';
 import type {ProfileRoutesParamList} from '../../navigation/types';
+import {useTheme} from '../../theme/ThemeProvider';
 
 type Props = NativeStackScreenProps<ProfileRoutesParamList, 'ProfileHome'>;
 
 export function ProfileScreen({navigation}: Props) {
   const layout = useLibraryLayout();
+  const onBack = useProfileStackBack(navigation);
   const {openSettings, openEditProfile, openDataHandling} =
     useProfileNavigation();
   const {user} = useAppUser();
+  const {preferences} = useTheme();
   const {data: decks = []} = useDecks();
   const {data: queue = []} = useReviewQueue();
   const {data: summary} = useProgressSummary();
@@ -36,10 +39,8 @@ export function ProfileScreen({navigation}: Props) {
   const cardCount = decks.reduce((sum, deck) => sum + deck.cardCount, 0);
   const streak = summary?.currentStreak ?? 0;
   const reviewedToday = summary?.reviewedTodayCount ?? 0;
-  const dailyGoal = preferencesStorage.getDailyGoal();
-  const displayName = user?.name?.trim() || 'Flipwise learner';
-  const remindersOn = preferencesStorage.get().remindersEnabled;
-
+  const dailyGoal = preferences.dailyGoal;
+  const displayName = user?.name?.trim() || 'Cardweave learner';
   const settingsButton = (
     <Pressable
       onPress={openSettings}
@@ -63,7 +64,7 @@ export function ProfileScreen({navigation}: Props) {
     <View className="flex-1" style={{backgroundColor: libraryTokens.background}}>
       <ProfileScreenHeader
         title="Profile"
-        onBack={() => navigation.goBack()}
+        onBack={onBack}
         right={settingsButton}
       />
 
@@ -180,29 +181,6 @@ export function ProfileScreen({navigation}: Props) {
               }}
             />
           </View>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 8,
-              marginTop: 4,
-            }}>
-            <MaterialIcons
-              name={remindersOn ? 'notifications-active' : 'notifications-off'}
-              size={18}
-              color={libraryTokens.primary}
-            />
-            <Text
-              style={{
-                fontFamily: fonts.body,
-                fontSize: 13,
-                color: libraryTokens.muted,
-              }}>
-              {remindersOn
-                ? 'Study reminders enabled'
-                : 'Study reminders are off — enable in Settings'}
-            </Text>
-          </View>
         </View>
 
         <SettingsSectionCard title="Account">
@@ -213,7 +191,7 @@ export function ProfileScreen({navigation}: Props) {
           />
           <SettingsCardDivider />
           <SettingsLinkRow
-            label="Settings & notifications"
+            label="Settings"
             icon="settings"
             onPress={openSettings}
           />

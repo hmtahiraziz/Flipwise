@@ -22,8 +22,6 @@ export function CreateDeckHeader({title, onBack, right}: CreateDeckHeaderProps) 
       fallbackOpacity={0.8}
       style={{
         paddingTop: insets.top,
-        borderBottomWidth: 1,
-        borderBottomColor: libraryTokens.border,
         backgroundColor: 'rgba(255, 255, 255, 0.8)',
       }}>
       <View

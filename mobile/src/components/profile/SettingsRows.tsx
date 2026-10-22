@@ -166,38 +166,3 @@ export function SettingsToggleRow({
   );
 }
 
-type SettingsComingSoonRowProps = {
-  label: string;
-  icon: string;
-};
-
-export function SettingsComingSoonRow({label, icon}: SettingsComingSoonRowProps) {
-  return (
-    <View
-      className="flex-row items-center justify-between"
-      style={{paddingHorizontal: 20, paddingVertical: 20, gap: 12, opacity: 0.5}}>
-      <View className="flex-row items-center flex-1 min-w-0" style={{gap: 12}}>
-        <MaterialIcons name={icon} size={22} color={libraryTokens.muted} />
-        <Text
-          style={{
-            fontFamily: fonts.body,
-            fontSize: 16,
-            lineHeight: 24,
-            color: libraryTokens.ink,
-          }}>
-          {label}
-        </Text>
-      </View>
-      <Text
-        style={{
-          fontFamily: fonts.bodyMedium,
-          fontSize: 13,
-          lineHeight: 18,
-          fontStyle: 'italic',
-          color: libraryTokens.muted,
-        }}>
-        Coming soon
-      </Text>
-    </View>
-  );
-}

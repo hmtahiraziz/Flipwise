@@ -1,9 +1,13 @@
 import {useSignIn, useSignUp} from '@clerk/clerk-expo';
 import {zodResolver} from '@hookform/resolvers/zod';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {useCallback, useState} from 'react';
+import {useCallback, useEffect, useState} from 'react';
 import {Controller, useForm} from 'react-hook-form';
-import {Pressable, Text} from 'react-native';
+import {Pressable, Text, View} from 'react-native';
+import {
+  coolDownOAuthBrowser,
+  warmUpOAuthBrowser,
+} from '../../auth/googleOAuth';
 import {AuthBrandHeader} from '../../components/auth/AuthBrandHeader';
 import {AuthDivider} from '../../components/auth/AuthDivider';
 import {AuthField} from '../../components/auth/AuthField';
@@ -31,6 +35,13 @@ export function EmailAuthScreen({navigation, route}: Props) {
   const layout = useAuthLayout();
   const {signIn, setActive: setSignInActive, isLoaded: signInLoaded} = useSignIn();
   const {signUp, isLoaded: signUpLoaded} = useSignUp();
+
+  useEffect(() => {
+    void warmUpOAuthBrowser();
+    return () => {
+      void coolDownOAuthBrowser();
+    };
+  }, []);
 
   const signInForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -118,7 +129,7 @@ export function EmailAuthScreen({navigation, route}: Props) {
   const form = isSignIn ? signInForm : signUpForm;
 
   return (
-    <AuthScreenShell onBack={() => navigation.goBack()}>
+    <AuthScreenShell>
       <AuthBrandHeader
         subtitle={
           isSignIn
@@ -239,6 +250,43 @@ export function EmailAuthScreen({navigation, route}: Props) {
           {isSignIn ? 'Register' : 'Login'}
         </Text>
       </Text>
+
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'center',
+          marginTop: 24,
+          gap: 16,
+        }}>
+        <Pressable onPress={() => navigation.navigate('TermsOfService')}>
+          <Text
+            style={{
+              fontFamily: fonts.body,
+              fontSize: 13,
+              color: authTheme.muted,
+            }}>
+            Terms
+          </Text>
+        </Pressable>
+        <Text
+          style={{
+            fontFamily: fonts.body,
+            fontSize: 13,
+            color: authTheme.muted,
+          }}>
+          ·
+        </Text>
+        <Pressable onPress={() => navigation.navigate('PrivacyPolicy')}>
+          <Text
+            style={{
+              fontFamily: fonts.body,
+              fontSize: 13,
+              color: authTheme.muted,
+            }}>
+            Privacy
+          </Text>
+        </Pressable>
+      </View>
     </AuthScreenShell>
   );
 }

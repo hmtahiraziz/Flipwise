@@ -3,7 +3,6 @@ import {Text, View} from 'react-native';
 import {SilhouetteCard} from '../ui/SilhouetteCard';
 import {colors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
-import {reviewTokens} from '../../config/reviewTokens';
 
 type SettingsSectionCardProps = {
   title?: string;
@@ -28,13 +27,14 @@ export function SettingsSectionCard({title, children}: SettingsSectionCardProps)
         </Text>
       ) : null}
 
-      <SilhouetteCard variant="review">
+      {/* Library silhouette pads the stack offset so ScrollView does not clip borders/shadows. */}
+      <SilhouetteCard borderRadius={libraryTokens.cardRadius} offset={4}>
         <View
           style={{
-            borderRadius: reviewTokens.cardRadius,
+            borderRadius: libraryTokens.cardRadius,
             borderWidth: 1,
-            borderColor: reviewTokens.border,
-            backgroundColor: reviewTokens.card,
+            borderColor: libraryTokens.border,
+            backgroundColor: libraryTokens.surface,
             overflow: 'hidden',
           }}>
           {children}
@@ -46,37 +46,6 @@ export function SettingsSectionCard({title, children}: SettingsSectionCardProps)
 
 export function SettingsCardDivider() {
   return <View style={{height: 1, backgroundColor: libraryTokens.border}} />;
-}
-
-export function SettingsActiveBadge() {
-  return (
-    <View
-      className="flex-row items-center rounded-full"
-      style={{
-        gap: 6,
-        backgroundColor: libraryTokens.primaryContainer,
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-      }}>
-      <View
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: 4,
-          backgroundColor: libraryTokens.primary,
-        }}
-      />
-      <Text
-        style={{
-          fontFamily: fonts.bodySemiBold,
-          fontSize: 13,
-          lineHeight: 18,
-          color: libraryTokens.onPrimaryContainer,
-        }}>
-        Active
-      </Text>
-    </View>
-  );
 }
 
 export function SettingsVersionBadge({version}: {version: string}) {

@@ -215,9 +215,14 @@ export function validateGeneratedCards(
     issues.push("Duplicate or near-duplicate cards were removed");
   }
 
+  // Notes/OCR often yield fewer high-quality cards — accept a lower floor.
+  const ratio =
+    options?.sourceType === "notes"
+      ? Math.min(MIN_ACCEPTABLE_RATIO, 0.45)
+      : MIN_ACCEPTABLE_RATIO;
   const minAcceptable = Math.max(
     3,
-    Math.ceil(requestedCount * MIN_ACCEPTABLE_RATIO),
+    Math.ceil(requestedCount * ratio),
   );
 
   if (unique.length < minAcceptable) {
@@ -234,8 +239,9 @@ export function validateGeneratedCards(
 
   const trimmed = unique.slice(0, requestedCount);
   const ok =
-    trimmed.length >= minAcceptable &&
-    trimmed.length >= Math.min(requestedCount, minAcceptable);
+    trimmed.length >= minAcceptable ||
+    // Last-resort accept: enough usable cards to study even if under ratio.
+    (trimmed.length >= 3 && options?.sourceType === "notes");
 
   return { cards: trimmed, ok, issues };
 }

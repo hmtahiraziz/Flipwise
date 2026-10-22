@@ -1,5 +1,6 @@
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import {Alert, Pressable, Text, View} from 'react-native';
+import {Pressable, Text, View} from 'react-native';
+import {showAppActionSheet} from '../ui/AppAlert';
 import {brandColors, elevation, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 import {deckMasteryPercent} from '../../lib/deckMastery';
@@ -52,24 +53,40 @@ export function DeckCard({
   const caughtUp = due === 0 && deck.cardCount > 0;
 
   const openMenu = () => {
-    const options: Array<{
-      text: string;
-      style?: 'destructive' | 'cancel';
-      onPress?: () => void;
-    }> = [];
+    const labels: string[] = [];
+    const actions: Array<() => void> = [];
+    let destructiveIndex: number | undefined;
+
     if (onToggleFavorite) {
-      options.push({
-        text: isFavorite ? 'Remove star' : 'Star deck',
-        onPress: onToggleFavorite,
-      });
+      labels.push(isFavorite ? 'Remove star' : 'Star deck');
+      actions.push(onToggleFavorite);
     }
-    if (onEdit) options.push({text: 'Edit deck', onPress: onEdit});
-    if (onArchive) options.push({text: 'Archive deck', onPress: onArchive});
+    if (onEdit) {
+      labels.push('Edit deck');
+      actions.push(onEdit);
+    }
+    if (onArchive) {
+      labels.push('Archive deck');
+      actions.push(onArchive);
+    }
     if (onDelete) {
-      options.push({text: 'Delete deck', style: 'destructive', onPress: onDelete});
+      destructiveIndex = labels.length;
+      labels.push('Delete deck');
+      actions.push(onDelete);
     }
-    options.push({text: 'Cancel', style: 'cancel'});
-    Alert.alert(deck.title, undefined, options);
+    labels.push('Cancel');
+    const cancelButtonIndex = labels.length - 1;
+
+    showAppActionSheet({
+      title: deck.title,
+      options: labels,
+      cancelButtonIndex,
+      destructiveButtonIndex: destructiveIndex,
+      onPress: index => {
+        if (index === cancelButtonIndex) return;
+        actions[index]?.();
+      },
+    });
   };
 
   if (compact) {

@@ -2,7 +2,6 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   AppState,
   type AppStateStatus,
   Pressable,
@@ -22,14 +21,20 @@ import {
 import {ExplainAiSheet} from '../../components/review/ExplainAiSheet';
 import {RatingBar} from '../../components/review/RatingBar';
 import {ReviewSessionHeader} from '../../components/review/ReviewSessionHeader';
-import {Button} from '../../components/ui/Button';
+import {DeckFormFooter} from '../../components/deck/DeckFormFooter';
+import {appAlert} from '../../components/ui/AppAlert';
 import {toast} from '../../components/ui/Toast';
 import {libraryTokens} from '../../config/libraryTokens';
 import {brandColors, fonts} from '../../config/theme';
 import {reviewTokens} from '../../config/reviewTokens';
-import {getApiErrorMessage, isNetworkError} from '../../lib/errors';
+import {ensureAiProcessingConsent} from '../../lib/aiConsent';
+import {
+  getApiErrorMessage,
+  getExplainErrorMessage,
+  isNetworkError,
+} from '../../lib/errors';
 import {useReviewMutations, useReviewQueue} from '../../hooks/useReviews';
-import type {ReviewStackParamList} from '../../navigation/types';
+import type {ReviewSessionParams} from '../../navigation/types';
 import {explainCard} from '../../services/api/reviewApi';
 import {
   localDataStorage,
@@ -42,7 +47,8 @@ import type {
   ReviewQueueItem,
 } from '../../types/api';
 
-type Props = NativeStackScreenProps<ReviewStackParamList, 'ReviewSession'>;
+type ReviewSessionRouteMap = {ReviewSession: ReviewSessionParams};
+type Props = NativeStackScreenProps<ReviewSessionRouteMap, 'ReviewSession'>;
 
 type UndoSnapshot = {
   queue: ReviewQueueItem[];
@@ -90,9 +96,10 @@ export function ReviewSessionScreen({navigation, route}: Props) {
   const insets = useSafeAreaInsets();
   const maxContentWidth = Math.min(width - 40, 448);
   const deckId = route.params?.deckId;
+  const forceFresh = route.params?.forceFresh === true;
   const {reducedMotion} = useTheme();
   const {data: queue = [], isLoading, error, refetch} = useReviewQueue(deckId);
-  const {rateCard, isRating} = useReviewMutations(deckId);
+  const {rateCard} = useReviewMutations(deckId);
 
   const [sessionQueue, setSessionQueue] = useState<ReviewQueueItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -114,6 +121,8 @@ export function ReviewSessionScreen({navigation, route}: Props) {
   const pausedAtRef = useRef<number | null>(null);
   const pausedTotalRef = useRef(0);
   const explainRequestRef = useRef(0);
+  /** Blocks double-taps only — never waits on the network. */
+  const advancingRef = useRef(false);
 
   const sessionQueueRef = useRef(sessionQueue);
   const currentIndexRef = useRef(currentIndex);
@@ -203,6 +212,13 @@ export function ReviewSessionScreen({navigation, route}: Props) {
     }
 
     setInitPrompted(true);
+
+    // Deck Study CTA: start immediately — no resume dialog blocking the push.
+    if (forceFresh) {
+      startFresh(queue);
+      return;
+    }
+
     const saved = localDataStorage.getSession();
     const canResume =
       saved != null &&
@@ -215,7 +231,7 @@ export function ReviewSessionScreen({navigation, route}: Props) {
       return;
     }
 
-    Alert.alert(
+    appAlert(
       'Resume session?',
       `Continue from card ${saved.index + 1} of ${saved.cardIds.length}?`,
       [
@@ -235,6 +251,7 @@ export function ReviewSessionScreen({navigation, route}: Props) {
     completed,
     deckId,
     error,
+    forceFresh,
     initPrompted,
     isLoading,
     queue,
@@ -303,6 +320,11 @@ export function ReviewSessionScreen({navigation, route}: Props) {
   }, [paused]);
 
   const runExplainAi = useCallback(async (cardId: string) => {
+    const consented = await ensureAiProcessingConsent();
+    if (!consented) {
+      return;
+    }
+
     const requestId = ++explainRequestRef.current;
     setExplainVisible(true);
     setExplainLoading(true);
@@ -314,14 +336,7 @@ export function ReviewSessionScreen({navigation, route}: Props) {
       setExplainResult(result);
     } catch (err) {
       if (requestId !== explainRequestRef.current) return;
-      setExplainError(
-        getApiErrorMessage(
-          err,
-          isNetworkError(err)
-            ? 'You appear to be offline. Check your connection and try again.'
-            : 'Could not generate an explanation. Please try again.',
-        ),
-      );
+      setExplainError(getExplainErrorMessage(err));
     } finally {
       if (requestId === explainRequestRef.current) {
         setExplainLoading(false);
@@ -330,8 +345,12 @@ export function ReviewSessionScreen({navigation, route}: Props) {
   }, []);
 
   const handleExplainAi = useCallback(() => {
+    if (paused) {
+      toast.info('Session paused', 'Resume to use Explain with AI.');
+      return;
+    }
     const cardId = sessionQueue[currentIndex]?.card.id;
-    if (!cardId || paused) return;
+    if (!cardId) return;
     void runExplainAi(cardId);
   }, [sessionQueue, currentIndex, paused, runExplainAi]);
 
@@ -346,10 +365,6 @@ export function ReviewSessionScreen({navigation, route}: Props) {
   useEffect(() => {
     handleCloseExplain();
   }, [currentIndex, handleCloseExplain]);
-
-  const handleReport = useCallback(() => {
-    toast.info('Thanks', 'Issue flagged for this card.');
-  }, []);
 
   const finishSession = useCallback(() => {
     setCompleted(true);
@@ -402,9 +417,11 @@ export function ReviewSessionScreen({navigation, route}: Props) {
   );
 
   const handleRate = useCallback(
-    async (rating: EaseRating) => {
-      if (!currentItem || isRating) return;
+    (rating: EaseRating) => {
+      if (!currentItem || advancingRef.current || paused) return;
+      advancingRef.current = true;
 
+      const cardId = currentItem.card.id;
       const durationMs = Math.max(0, Date.now() - cardShownAt);
       const undoSnapshot: UndoSnapshot = {
         queue: sessionQueue,
@@ -412,26 +429,7 @@ export function ReviewSessionScreen({navigation, route}: Props) {
         flipped: true,
       };
 
-      try {
-        await rateCard({
-          cardId: currentItem.card.id,
-          rating,
-          durationMs,
-        });
-      } catch (err) {
-        if (isNetworkError(err)) {
-          localDataStorage.enqueuePendingRating({
-            cardId: currentItem.card.id,
-            rating,
-            durationMs,
-          });
-          toast.info('Saved offline — will sync');
-        } else {
-          toast.error('Could not save rating', getApiErrorMessage(err));
-          return;
-        }
-      }
-
+      // Advance UI immediately — sync rating in the background (Anki-style).
       setLastUndo(undoSnapshot);
 
       let nextQueue = sessionQueue;
@@ -450,12 +448,30 @@ export function ReviewSessionScreen({navigation, route}: Props) {
 
       setFlipped(false);
       writeSession(nextQueue, nextIndex);
+
+      // Brief lock so a double-tap cannot skip two cards.
+      setTimeout(() => {
+        advancingRef.current = false;
+      }, 120);
+
+      void rateCard({cardId, rating, durationMs}).catch(err => {
+        if (isNetworkError(err)) {
+          localDataStorage.enqueuePendingRating({
+            cardId,
+            rating,
+            durationMs,
+          });
+          toast.info('Saved offline — will sync');
+          return;
+        }
+        toast.error('Could not save rating', getApiErrorMessage(err));
+      });
     },
     [
       cardShownAt,
       currentIndex,
       currentItem,
-      isRating,
+      paused,
       rateCard,
       sessionQueue,
       writeSession,
@@ -463,7 +479,7 @@ export function ReviewSessionScreen({navigation, route}: Props) {
   );
 
   const handleUndo = useCallback(() => {
-    if (!lastUndo || isRating) return;
+    if (!lastUndo || advancingRef.current) return;
     setSessionQueue(lastUndo.queue);
     setCurrentIndex(lastUndo.index);
     setFlipped(lastUndo.flipped);
@@ -471,7 +487,7 @@ export function ReviewSessionScreen({navigation, route}: Props) {
     setLastUndo(null);
     setCardShownAt(Date.now());
     writeSession(lastUndo.queue, lastUndo.index);
-  }, [isRating, lastUndo, writeSession]);
+  }, [lastUndo, writeSession]);
 
   const handleToggleBookmark = useCallback(() => {
     if (!currentItem) return;
@@ -481,11 +497,30 @@ export function ReviewSessionScreen({navigation, route}: Props) {
 
   const handleDone = useCallback(() => {
     clearSession();
-    navigation.goBack();
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
   }, [clearSession, navigation]);
 
   const screenStyle = {backgroundColor: libraryTokens.background};
   const bottomPadding = Math.max(insets.bottom, 12);
+  const endStateFooter = (
+    label: string,
+    onPress: () => void,
+    showSaveIcon = true,
+  ) => (
+    <View
+      style={{
+        paddingBottom: bottomPadding,
+        backgroundColor: brandColors.surface,
+      }}>
+      <DeckFormFooter
+        label={label}
+        onPress={onPress}
+        showSaveIcon={showSaveIcon}
+      />
+    </View>
+  );
 
   if (isLoading) {
     return (
@@ -502,10 +537,10 @@ export function ReviewSessionScreen({navigation, route}: Props) {
           title="Review unavailable"
           onBack={() => navigation.goBack()}
         />
-        <View className="px-5 pt-6">
+        <View className="flex-1 px-5 pt-6">
           <Text className="text-danger mb-4">{getApiErrorMessage(error)}</Text>
-          <Button label="Retry" variant="secondary" onPress={() => void refetch()} />
         </View>
+        {endStateFooter('Retry', () => void refetch(), false)}
       </View>
     );
   }
@@ -515,16 +550,34 @@ export function ReviewSessionScreen({navigation, route}: Props) {
       <View className="flex-1" style={screenStyle}>
         <ReviewSessionHeader
           title="All caught up"
-          onBack={() => navigation.goBack()}
+          onBack={handleDone}
         />
-        <View className="flex-1 px-5 pt-6">
-          <Text className="text-body text-muted leading-6 mb-6">
+        <View className="flex-1 px-5 pt-6 justify-center" style={{maxWidth: maxContentWidth, alignSelf: 'center', width: '100%'}}>
+          <View
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: 20,
+              backgroundColor: brandColors.paleLime,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 16,
+            }}>
+            <MaterialIcons name="check-circle" size={32} color={brandColors.olive} />
+          </View>
+          <Text
+            style={{
+              fontFamily: fonts.bodyMedium,
+              fontSize: 15,
+              lineHeight: 22,
+              color: reviewTokens.muted,
+            }}>
             {deckId
               ? 'No cards are due for review in this deck right now.'
               : 'No cards are due across your library right now.'}
           </Text>
-          <Button label="Done" variant="secondary" onPress={() => navigation.goBack()} />
         </View>
+        {endStateFooter('Done', handleDone)}
       </View>
     );
   }
@@ -536,13 +589,43 @@ export function ReviewSessionScreen({navigation, route}: Props) {
           title="Session complete"
           onBack={handleDone}
         />
-        <View className="flex-1 px-5 pt-6">
-          <Text className="text-body text-muted leading-6 mb-6">
+        <View
+          className="flex-1 px-5 pt-6 justify-center"
+          style={{maxWidth: maxContentWidth, alignSelf: 'center', width: '100%'}}>
+          <View
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: 24,
+              backgroundColor: brandColors.lime,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 20,
+            }}>
+            <MaterialIcons name="emoji-events" size={36} color={brandColors.charcoal} />
+          </View>
+          <Text
+            style={{
+              fontFamily: fonts.bodyBold,
+              fontSize: 22,
+              lineHeight: 28,
+              color: brandColors.charcoal,
+              marginBottom: 8,
+            }}>
+            Nice work
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.bodyMedium,
+              fontSize: 15,
+              lineHeight: 22,
+              color: reviewTokens.muted,
+            }}>
             You reviewed {totalCards} {totalCards === 1 ? 'card' : 'cards'}. Cards rated
             Good or Easy will reappear on their scheduled dates.
           </Text>
-          <Button label="Done" onPress={handleDone} />
         </View>
+        {endStateFooter('Done', handleDone)}
       </View>
     );
   }
@@ -558,8 +641,8 @@ export function ReviewSessionScreen({navigation, route}: Props) {
   const ratingBar = (
     <RatingBar
       review={currentItem.review}
-      onRate={rating => void handleRate(rating)}
-      disabled={isRating || paused}
+      onRate={handleRate}
+      disabled={paused}
       contentWidth={maxContentWidth}
     />
   );
@@ -630,8 +713,7 @@ export function ReviewSessionScreen({navigation, route}: Props) {
               cardNumber={currentIndex + 1}
               reducedMotion={reducedMotion}
               explainLoading={explainLoading}
-              onExplainAi={handleExplainAi}
-              onReport={handleReport}
+              onExplainAi={paused ? undefined : handleExplainAi}
             />
           </View>
 
@@ -639,7 +721,7 @@ export function ReviewSessionScreen({navigation, route}: Props) {
             reducedMotion ? (
               ratingBar
             ) : (
-              <Animated.View entering={FadeInDown.duration(350).delay(100)}>
+              <Animated.View entering={FadeInDown.duration(180)}>
                 {ratingBar}
               </Animated.View>
             )
@@ -656,11 +738,11 @@ export function ReviewSessionScreen({navigation, route}: Props) {
         }}>
         <Pressable
           onPress={handleUndo}
-          disabled={!lastUndo || isRating}
+          disabled={!lastUndo}
           accessibilityRole="button"
           accessibilityLabel="Undo rating"
           className={`flex-row items-center active:opacity-70 ${
-            !lastUndo || isRating ? 'opacity-30' : ''
+            !lastUndo ? 'opacity-30' : ''
           }`}
           style={{gap: 6, paddingVertical: 6, paddingHorizontal: 8}}>
           <MaterialIcons name="undo" size={16} color={libraryTokens.ink} />
@@ -703,6 +785,10 @@ export function ReviewSessionScreen({navigation, route}: Props) {
         question={currentItem.card.question}
         onClose={handleCloseExplain}
         onRetry={() => {
+          if (paused) {
+            toast.info('Session paused', 'Resume to use Explain with AI.');
+            return;
+          }
           const cardId = currentItem.card.id;
           if (cardId) void runExplainAi(cardId);
         }}

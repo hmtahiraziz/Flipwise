@@ -3,22 +3,25 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { getEnv } from "./config/env";
+import { mountOpenApiDocs, shouldEnableApiDocs } from "./docs/openapi";
 import { errorHandler } from "./middleware/errorHandler";
 import { authRouter } from "./routes/auth.routes";
 import { cardsRouter, deckCardsRouter } from "./routes/cards.routes";
 import { decksRouter } from "./routes/decks.routes";
 import { legalRouter } from "./routes/legal.routes";
 import { progressRouter } from "./routes/progress.routes";
+import { reportsRouter } from "./routes/reports.routes";
 import { reviewsRouter } from "./routes/reviews.routes";
+import { webhooksRouter } from "./routes/webhooks.routes";
 
-function resolveCorsOrigin(
+export function resolveCorsOrigin(
   corsOrigin: string | undefined,
   isProduction: boolean,
 ): boolean | string | string[] {
   if (!corsOrigin || corsOrigin.trim() === "" || corsOrigin.trim() === "*") {
     if (isProduction) {
-      console.warn(
-        "[cors] CORS_ORIGIN is '*' or unset in production; prefer a comma-separated allowlist",
+      throw new Error(
+        "CORS_ORIGIN must be a comma-separated allowlist in production (got '*' or unset)",
       );
     }
     return true;
@@ -31,8 +34,8 @@ function resolveCorsOrigin(
 
   if (allowlist.length === 0) {
     if (isProduction) {
-      console.warn(
-        "[cors] CORS_ORIGIN allowlist is empty in production; prefer a comma-separated allowlist",
+      throw new Error(
+        "CORS_ORIGIN must be a non-empty comma-separated allowlist in production",
       );
     }
     return true;
@@ -66,6 +69,14 @@ export function createApp() {
       origin: resolveCorsOrigin(env.CORS_ORIGIN, isProduction),
     }),
   );
+
+  // Clerk/Svix must verify the exact raw body — mount before express.json().
+  app.use(
+    "/webhooks",
+    express.raw({ type: "application/json", limit: "1mb" }),
+    webhooksRouter,
+  );
+
   app.use(express.json({ limit: "1mb" }));
 
   const apiLimiter = rateLimit({
@@ -87,6 +98,10 @@ export function createApp() {
     res.json({ ok: true });
   });
 
+  if (shouldEnableApiDocs()) {
+    mountOpenApiDocs(app);
+  }
+
   // Public legal pages for Play Console and in-app HTTPS links.
   app.use(legalRouter);
 
@@ -96,6 +111,7 @@ export function createApp() {
   app.use("/api/decks/:deckId/cards", deckCardsRouter);
   app.use("/api/cards", cardsRouter);
   app.use("/api/reviews", reviewsRouter);
+  app.use("/api/reports", reportsRouter);
   app.use("/api/progress", progressRouter);
 
   app.use(errorHandler);

@@ -13,13 +13,18 @@ import {
   updateCardForUser,
 } from "../services/card.service";
 import { getDeckForUser } from "../services/deck.service";
+import { consumeAiQuota } from "../services/aiQuota.service";
 import {
   buildImportResult,
+  extractPdfTextLayer,
   extractTextFromImage,
-  extractTextFromPdf,
+  extractTextFromPdfViaOcr,
   extractTextFromUrl,
+  MIN_USEFUL_PDF_TEXT,
+  truncateImportedText,
 } from "../services/import.service";
 import { generateFlashcards } from "../services/llm.service";
+import { requireAiConsent } from "../utils/aiConsent";
 
 const cardBodySchema = z.object({
   question: z.string().trim().min(1, "Question is required").max(2000),
@@ -45,6 +50,7 @@ const generateSchema = z.object({
   cardFormat: z.enum(["qa", "cloze"]).default("qa"),
   detailMode: z.enum(["concise", "examples"]).default("concise"),
   language: z.string().trim().min(2).max(16).optional(),
+  aiConsent: z.union([z.literal(true), z.literal("true"), z.literal("1")]),
 });
 const urlImportSchema = z.object({
   url: z.string().url("Valid URL is required").max(2000),
@@ -150,8 +156,11 @@ deckCardsRouter.post("/generate", generateLimiter, async (req, res, next) => {
     const deckId = getDeckIdParam(req);
     const deck = await getDeckForUser(userId, deckId);
     const body = generateSchema.parse(req.body);
+    requireAiConsent(body.aiConsent);
+    await consumeAiQuota(userId, "generate");
+    const { aiConsent: _consent, ...generateInput } = body;
     const cards = await generateFlashcards({
-      ...body,
+      ...generateInput,
       deck: {
         title: deck.title,
         subject: deck.subject,
@@ -178,8 +187,17 @@ deckCardsRouter.post(
         throw new AppError(400, "PDF file is required");
       }
 
-      const content = await extractTextFromPdf(req.file.buffer);
-      res.json(buildImportResult(content));
+      // Prefer embedded text; fall back to screenshot OCR for scanned PDFs.
+      const textLayer = await extractPdfTextLayer(req.file.buffer);
+      if (textLayer.length >= MIN_USEFUL_PDF_TEXT) {
+        res.json(buildImportResult(truncateImportedText(textLayer)));
+        return;
+      }
+
+      requireAiConsent(req.body?.aiConsent);
+      await consumeAiQuota(userId, "ocr");
+      const ocrText = await extractTextFromPdfViaOcr(req.file.buffer);
+      res.json(buildImportResult(ocrText));
     } catch (error) {
       next(error);
     }
@@ -189,7 +207,33 @@ deckCardsRouter.post(
 deckCardsRouter.post(
   "/import/image",
   importLimiter,
-  imageUpload.single("file"),
+  (req, res, next) => {
+    imageUpload.single("file")(req, res, (err: unknown) => {
+      if (!err) {
+        next();
+        return;
+      }
+      const message = err instanceof Error ? err.message : "Invalid image upload";
+      if (
+        message.toLowerCase().includes("file too large") ||
+        (typeof err === "object" &&
+          err !== null &&
+          "code" in err &&
+          (err as { code?: string }).code === "LIMIT_FILE_SIZE")
+      ) {
+        next(new AppError(400, "Image exceeds 8 MB limit"));
+        return;
+      }
+      next(
+        new AppError(
+          400,
+          message.includes("JPEG")
+            ? message
+            : "Only JPEG, PNG, WEBP, or GIF images are supported",
+        ),
+      );
+    });
+  },
   async (req, res, next) => {
     try {
       const userId = getUserId(req);
@@ -200,6 +244,8 @@ deckCardsRouter.post(
         throw new AppError(400, "Image file is required");
       }
 
+      requireAiConsent(req.body?.aiConsent);
+      await consumeAiQuota(userId, "ocr");
       const content = await extractTextFromImage(
         req.file.buffer,
         req.file.mimetype || "image/jpeg",

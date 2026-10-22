@@ -1,24 +1,22 @@
-import {Pressable} from 'react-native';
-import {colors} from '../../config/theme';
-import {libraryTokens} from '../../config/libraryTokens';
+import {Pressable, View} from 'react-native';
+import {brandColors} from '../../config/theme';
 import {useAppUser} from '../../hooks/useAppUser';
 import {useProfileNavigation} from '../../hooks/useProfileNavigation';
 import {ProfileAvatar} from './ProfileAvatar';
 
 type HeaderProfileButtonProps = {
   onPress?: () => void;
-  borderColor?: string;
-  backgroundColor?: string;
+  size?: number;
 };
 
-/** Standard 40×40 profile chip for stack screen headers (Card List, Generate, Deck Detail, etc.). */
+/** Lime-ring profile chip for stack headers. */
 export function HeaderProfileButton({
   onPress,
-  borderColor = libraryTokens.border,
-  backgroundColor = colors.surfaceContainer,
+  size = 36,
 }: HeaderProfileButtonProps) {
   const {user} = useAppUser();
   const {openProfile} = useProfileNavigation();
+  const outer = size + 6;
 
   return (
     <Pressable
@@ -26,22 +24,33 @@ export function HeaderProfileButton({
       hitSlop={8}
       accessibilityLabel="Profile"
       accessibilityRole="button"
-      className="active:opacity-80"
+      className="active:opacity-85"
       style={{
-        width: 40,
-        height: 40,
+        width: outer,
+        height: outer,
         borderRadius: 999,
-        borderWidth: 1,
-        borderColor,
-        overflow: 'hidden',
-        backgroundColor,
+        borderWidth: 2,
+        borderColor: brandColors.lime,
+        padding: 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: brandColors.surface,
       }}>
-      <ProfileAvatar
-        name={user?.name}
-        email={user?.email}
-        imageUrl={user?.avatarUrl}
-        size={40}
-      />
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          overflow: 'hidden',
+        }}>
+        <ProfileAvatar
+          name={user?.name}
+          email={user?.email}
+          imageUrl={user?.avatarUrl}
+          size={size}
+          variant="brand"
+        />
+      </View>
     </Pressable>
   );
 }

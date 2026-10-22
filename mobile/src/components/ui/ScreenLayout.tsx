@@ -1,16 +1,16 @@
 import type {ReactNode} from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   Text,
   View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import {KeyboardAwareScrollView} from 'react-native-keyboard-controller';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {fonts, layout, typography} from '../../config/theme';
 import {contentContainerStyle, useScreenLayout} from '../../hooks/useScreenLayout';
+import {keyboardScrollProps} from './KeyboardSafeView';
 import {useThemeColors} from '../../theme/ThemeProvider';
 
 type ScreenLayoutProps = {
@@ -46,6 +46,7 @@ export function ScreenLayout({
 }: ScreenLayoutProps) {
   const colors = useThemeColors();
   const screen = useScreenLayout(maxWidth ?? layout.contentMaxWidthTablet);
+
   const bottomPad = tabBarInset
     ? screen.tabScrollBottomPadding
     : stickyFooter
@@ -92,16 +93,33 @@ export function ScreenLayout({
     </View>
   );
 
-  const main = scroll ? (
-    <ScrollView
-      className="flex-1"
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={containerPad}
-      showsVerticalScrollIndicator={false}>
+  const scrollBody = (
+    <>
       {titleBlock}
       {body}
       {footer ? <View className="pt-5">{footer}</View> : null}
-    </ScrollView>
+    </>
+  );
+
+  const main = scroll ? (
+    keyboard ? (
+      <KeyboardAwareScrollView
+        className="flex-1"
+        bottomOffset={24}
+        {...keyboardScrollProps}
+        contentContainerStyle={containerPad}
+        showsVerticalScrollIndicator={false}>
+        {scrollBody}
+      </KeyboardAwareScrollView>
+    ) : (
+      <ScrollView
+        className="flex-1"
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={containerPad}
+        showsVerticalScrollIndicator={false}>
+        {scrollBody}
+      </ScrollView>
+    )
   ) : (
     <View className="flex-1" style={containerPad}>
       {titleBlock}
@@ -123,27 +141,15 @@ export function ScreenLayout({
     </View>
   ) : null;
 
-  const wrapped = keyboard ? (
-    <KeyboardAvoidingView
-      className="flex-1"
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}>
-      {main}
-      {sticky}
-    </KeyboardAvoidingView>
-  ) : (
-    <View className="flex-1">
-      {main}
-      {sticky}
-    </View>
-  );
-
   return (
     <SafeAreaView
       edges={edges}
       className={`flex-1 ${className ?? ''}`}
       style={{backgroundColor: colors.background}}>
-      {wrapped}
+      <View className="flex-1">
+        {main}
+        {sticky}
+      </View>
     </SafeAreaView>
   );
 }

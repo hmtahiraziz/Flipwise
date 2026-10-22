@@ -27,7 +27,7 @@ export function OnboardingScreen() {
       {
         id: 'remember',
         headline: 'Spaced repetition that sticks',
-        body: 'Rate cards Again, Hard, Good, or Easy. Flipwise schedules the next review so memory compounds over time.',
+        body: 'Rate cards Again, Hard, Good, or Easy. Cardweave schedules the next review so memory compounds over time.',
         cardIcon: 'schedule',
       },
       {

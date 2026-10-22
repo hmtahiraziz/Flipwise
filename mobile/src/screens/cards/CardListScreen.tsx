@@ -1,5 +1,6 @@
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {useMemo, useRef, useState} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
+import {useCallback, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -14,33 +15,39 @@ import {CardListFooter, CARD_LIST_FOOTER_HEIGHT} from '../../components/card/Car
 import {CardListItem} from '../../components/card/CardListItem';
 import {CardSearchInput} from '../../components/card/CardSearchInput';
 import {GenerateReviewHeader} from '../../components/generate/GenerateReviewHeader';
-import {ProfileAvatar} from '../../components/profile/ProfileAvatar';
+import {HeaderProfileButton} from '../../components/profile/HeaderProfileButton';
 import {SilhouetteCard} from '../../components/ui/SilhouetteCard';
 import {ScrollToTopFab, SCROLL_TO_TOP_THRESHOLD} from '../../components/ui/ScrollToTopFab';
-import {colors, fonts} from '../../config/theme';
+import {fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
-import {useAppUser} from '../../hooks/useAppUser';
 import {useCards} from '../../hooks/useCards';
 import {useDeck} from '../../hooks/useDecks';
 import {useLibraryLayout} from '../../hooks/useLibraryLayout';
 import {deckMasteryPercent} from '../../lib/deckMastery';
 import {getApiErrorMessage} from '../../lib/errors';
 import {getSubjectIcon} from '../../lib/subjectIcons';
-import {useProfileNavigation} from '../../hooks/useProfileNavigation';
 import type {LibraryStackParamList} from '../../navigation/types';
+import {localDataStorage} from '../../storage/localDataStorage';
 
 type Props = NativeStackScreenProps<LibraryStackParamList, 'CardList'>;
 
 export function CardListScreen({navigation, route}: Props) {
   const {deckId} = route.params;
   const layout = useLibraryLayout();
-  const {user} = useAppUser();
-  const {openProfile} = useProfileNavigation();
   const {data: deck} = useDeck(deckId);
   const {data: cards, isLoading, error, refetch, isRefetching} = useCards(deckId);
   const [query, setQuery] = useState('');
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [starredIds, setStarredIds] = useState<string[]>(() =>
+    localDataStorage.getBookmarks(),
+  );
   const listRef = useRef<FlatList>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      setStarredIds(localDataStorage.getBookmarks());
+    }, []),
+  );
 
   const list = cards ?? [];
   const filtered = useMemo(() => {
@@ -69,30 +76,12 @@ export function CardListScreen({navigation, route}: Props) {
     listRef.current?.scrollToOffset({offset: 0, animated: true});
   };
 
-  const headerRight = (
-    <Pressable
-      onPress={openProfile}
-      hitSlop={8}
-      accessibilityLabel="Profile"
-      accessibilityRole="button"
-      className="active:opacity-80"
-      style={{
-        width: 40,
-        height: 40,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: libraryTokens.border,
-        overflow: 'hidden',
-        backgroundColor: colors.surfaceContainer,
-      }}>
-      <ProfileAvatar
-        name={user?.name}
-        email={user?.email}
-        imageUrl={user?.avatarUrl}
-        size={40}
-      />
-    </Pressable>
-  );
+  const toggleStar = useCallback((cardId: string) => {
+    const next = localDataStorage.toggleBookmark(cardId);
+    setStarredIds(next);
+  }, []);
+
+  const headerRight = <HeaderProfileButton size={32} />;
 
   if (isLoading) {
     return (
@@ -196,6 +185,9 @@ export function CardListScreen({navigation, route}: Props) {
                     marginTop: 4,
                   }}>
                   {list.length} {list.length === 1 ? 'card' : 'cards'} in this collection
+                  {starredIds.length > 0
+                    ? ` · ${starredIds.filter(id => list.some(c => c.id === id)).length} starred`
+                    : ''}
                 </Text>
               </View>
               <View
@@ -273,6 +265,8 @@ export function CardListScreen({navigation, route}: Props) {
         renderItem={({item}) => (
           <CardListItem
             card={item}
+            starred={starredIds.includes(item.id)}
+            onToggleStar={() => toggleStar(item.id)}
             onPress={() =>
               navigation.navigate('EditCard', {deckId, cardId: item.id})
             }

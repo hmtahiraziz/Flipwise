@@ -1,7 +1,16 @@
-import {useMemo, useState} from 'react';
-import {Pressable, ScrollView, Text, TextInput, View} from 'react-native';
+import {useRef, useState} from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  type NativeSyntheticEvent,
+  type TextInputSelectionChangeEventData,
+} from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import {brandColors, colors, fonts} from '../../config/theme';
+import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 import {toast} from '../ui/Toast';
 
@@ -18,114 +27,106 @@ type CardEditorFieldsProps = {
   onCardTypeChange?: (value: 'basic' | 'cloze') => void;
   questionError?: string;
   answerError?: string;
-  /** Optional SM-2 meta for retention meter */
-  retention?: {
-    percent: number;
-    label: string;
-    dueLabel: string;
-    repetitions: number;
-    intervalDays: number;
-  } | null;
   showPreview?: boolean;
+  /** Shown in the Card Architecture row (edit existing card only). */
+  onDelete?: () => void;
+  deleting?: boolean;
 };
 
 const FRONT_MAX = 250;
 const BACK_MAX = 500;
+const CLOZE_BLANK = '____';
 
 const ARCHITECTURE: Array<{
   value: 'basic' | 'cloze';
   label: string;
   icon: string;
+  hint: string;
 }> = [
-  {value: 'basic', label: 'Basic (Front / Back)', icon: 'view-carousel'},
-  {value: 'cloze', label: 'Fill-in-the-Blank', icon: 'subtitles'},
+  {
+    value: 'basic',
+    label: 'Basic Q&A',
+    icon: 'view-carousel',
+    hint: 'Question on the front, answer on the back',
+  },
+  {
+    value: 'cloze',
+    label: 'Fill-in-the-Blank',
+    icon: 'subtitles',
+    hint: 'Sentence with ____ — type the missing word on the back',
+  },
 ];
 
-function FormatBar({compact}: {compact?: boolean}) {
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 2,
-        backgroundColor: libraryTokens.surfaceContainerLow,
-        borderRadius: 10,
-        paddingHorizontal: 6,
-        paddingVertical: 4,
-      }}>
-      {(['format-bold', 'format-italic', 'code'] as const).map(icon => (
-        <Pressable
-          key={icon}
-          accessibilityRole="button"
-          accessibilityLabel={icon}
-          hitSlop={4}
-          onPress={() =>
-            toast.info('Formatting', 'Rich text formatting is coming soon.')
-          }
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 6,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          className="active:opacity-70">
-          <MaterialIcons name={icon} size={16} color={libraryTokens.muted} />
-        </Pressable>
-      ))}
-      {!compact ? (
-        <>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() =>
-              toast.info('Formulas', 'LaTeX formula editor is coming soon.')
-            }
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 6,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            className="active:opacity-70">
-            <MaterialIcons name="functions" size={16} color={libraryTokens.muted} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() =>
-              toast.info('Lists', 'Bullet lists are coming soon.')
-            }
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 6,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            className="active:opacity-70">
-            <MaterialIcons
-              name="format-list-bulleted"
-              size={18}
-              color={libraryTokens.muted}
-            />
-          </Pressable>
-        </>
-      ) : null}
-    </View>
-  );
+/** Convert Anki-style {{c1::term}} into Cardweave ____ + answer. */
+function convertAnkiCloze(front: string): {question: string; answer: string} | null {
+  const match = front.match(/\{\{c\d+::([^}]+)\}\}/i);
+  if (!match?.[1]) return null;
+  const hidden = match[1].trim();
+  if (!hidden) return null;
+  return {
+    question: front.replace(/\{\{c\d+::[^}]+\}\}/gi, CLOZE_BLANK).slice(0, FRONT_MAX),
+    answer: hidden.slice(0, BACK_MAX),
+  };
 }
 
-function polishAnswerLocally(raw: string): string {
-  const cleaned = raw.trim().replace(/\s+/g, ' ');
-  if (!cleaned) return cleaned;
-  const sentences = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean);
-  if (sentences.length <= 1) {
-    return `Core distinction:\n• ${cleaned}`;
+function fillBlankPreview(sentence: string, answer: string): string {
+  const filled = answer.trim() || '…';
+  if (sentence.includes(CLOZE_BLANK)) {
+    return sentence.replace(CLOZE_BLANK, filled);
   }
-  return [
-    'Core distinction:',
-    ...sentences.slice(0, 4).map(s => `• ${s}`),
-  ].join('\n');
+  if (/_{3,}/.test(sentence)) {
+    return sentence.replace(/_{3,}/, filled);
+  }
+  return sentence;
+}
+
+/** Tighten answer text for recall — keeps the user's meaning, no canned topic text. */
+function polishAnswerLocally(raw: string): string {
+  const normalized = raw
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (!normalized) return normalized;
+
+  const lines = normalized
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  const looksListed = lines.some(line => /^([•\-\*]|\d+[.)])\s+/.test(line));
+
+  if (looksListed) {
+    return lines
+      .map(line => {
+        const body = line.replace(/^([•\-\*]|\d+[.)])\s+/, '').trim();
+        if (!body) return '';
+        const capped = body.charAt(0).toUpperCase() + body.slice(1);
+        return `• ${capped}`;
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  const sentences = normalized
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(s => {
+      const capped = s.charAt(0).toUpperCase() + s.slice(1);
+      return /[.!?]$/.test(capped) ? capped : `${capped}.`;
+    });
+
+  if (sentences.length <= 1) {
+    return sentences[0] ?? normalized;
+  }
+
+  if (sentences.length <= 4) {
+    return sentences.map(s => `• ${s}`).join('\n');
+  }
+
+  return sentences.slice(0, 5).map(s => `• ${s}`).join('\n');
 }
 
 export function CardEditorFields({
@@ -141,23 +142,18 @@ export function CardEditorFields({
   onCardTypeChange,
   questionError,
   answerError,
-  retention,
   showPreview = true,
+  onDelete,
+  deleting = false,
 }: CardEditorFieldsProps) {
+  const isCloze = cardType === 'cloze';
   const [previewFront, setPreviewFront] = useState(true);
   const [polishing, setPolishing] = useState(false);
-  const [clozeEnabled, setClozeEnabled] = useState(cardType === 'cloze');
+  const [selection, setSelection] = useState({start: 0, end: 0});
+  const questionRef = useRef<TextInput>(null);
 
-  const takeaway = useMemo(() => {
-    const base = explanation.trim() || answer.trim();
-    if (!base) return 'Add an answer to generate a retention takeaway.';
-    return base.length > 160 ? `${base.slice(0, 157)}…` : base;
-  }, [answer, explanation]);
-
-  const mnemonic = useMemo(() => {
-    if (hint.trim()) return hint.trim();
-    return 'Add a hint to power a mnemonic cue for this card.';
-  }, [hint]);
+  const hasBlank =
+    question.includes(CLOZE_BLANK) || /_{3,}/.test(question);
 
   const handlePolish = () => {
     if (!answer.trim()) {
@@ -167,48 +163,85 @@ export function CardEditorFields({
     setPolishing(true);
     setTimeout(() => {
       const next = polishAnswerLocally(answer);
-      onAnswerChange(next);
-      if (onExplanationChange && !explanation.trim()) {
-        onExplanationChange(
-          'Supervised uses labeled teacher signals; unsupervised maps unlabeled structure.',
-        );
+      if (next === answer.trim() || next === answer) {
+        toast.info('Already clear', 'No polish changes were needed.');
+      } else {
+        onAnswerChange(next.slice(0, BACK_MAX));
+        toast.success('Polished', 'Answer tightened for clearer recall.');
       }
       setPolishing(false);
-      toast.success('Polished', 'Answer tightened for clearer recall.');
-    }, 650);
-  };
-
-  const handleAutoTune = () => {
-    if (!answer.trim()) {
-      toast.error('Add an answer', 'Retention tips need card content first.');
-      return;
-    }
-    if (onExplanationChange) {
-      onExplanationChange(
-        'Supervised utilizes teacher signals (ground-truth targets); Unsupervised maps emergent patterns independently.',
-      );
-    }
-    if (onHintChange) {
-      onHintChange('Super = Supervised by an expert; Un = Unassisted discovery.');
-    }
-    toast.success('Auto-tuned', 'Takeaway and mnemonic refreshed.');
+    }, 280);
   };
 
   const handleArchitecture = (value: 'basic' | 'cloze') => {
+    if (value === 'cloze') {
+      const converted = convertAnkiCloze(question);
+      if (converted) {
+        onQuestionChange(converted.question);
+        if (!answer.trim()) {
+          onAnswerChange(converted.answer);
+        }
+        toast.info('Converted', 'Anki cloze syntax → Cardweave blank.');
+      }
+    }
     onCardTypeChange?.(value);
-    setClozeEnabled(value === 'cloze');
   };
 
-  const handleClozeToggle = () => {
-    const next = !clozeEnabled;
-    setClozeEnabled(next);
-    onCardTypeChange?.(next ? 'cloze' : 'basic');
+  const onSelectionChange = (
+    event: NativeSyntheticEvent<TextInputSelectionChangeEventData>,
+  ) => {
+    setSelection(event.nativeEvent.selection);
   };
+
+  /** Insert ____ at cursor, or turn the selected word into the blank + answer. */
+  const insertOrHideBlank = () => {
+    const start = selection.start;
+    const end = selection.end;
+    const selected = question.slice(start, end).trim();
+
+    if (selected) {
+      const nextQuestion = `${question.slice(0, start)}${CLOZE_BLANK}${question.slice(end)}`.slice(
+        0,
+        FRONT_MAX,
+      );
+      onQuestionChange(nextQuestion);
+      if (!answer.trim()) {
+        onAnswerChange(selected.slice(0, BACK_MAX));
+      }
+      toast.success('Blank set', `Hidden: “${selected}”`);
+      return;
+    }
+
+    if (hasBlank) {
+      toast.info('Blank already set', 'Select a word to replace it with the blank.');
+      return;
+    }
+
+    const insertAt = start;
+    const next = `${question.slice(0, insertAt)}${CLOZE_BLANK}${question.slice(insertAt)}`.slice(
+      0,
+      FRONT_MAX,
+    );
+    onQuestionChange(next);
+    const caret = Math.min(insertAt + CLOZE_BLANK.length, next.length);
+    setSelection({start: caret, end: caret});
+  };
+
+  const previewFrontText = isCloze
+    ? question.trim() || `The ${CLOZE_BLANK} is the powerhouse of the cell.`
+    : question.trim() || 'Your question appears here';
+
+  const previewBackText = isCloze
+    ? fillBlankPreview(
+        question.trim() || `The ${CLOZE_BLANK} is the powerhouse of the cell.`,
+        answer.trim() || 'mitochondria',
+      )
+    : answer.trim() || 'Your answer appears here';
 
   return (
     <View style={{gap: 20}}>
       {onCardTypeChange ? (
-        <View style={{gap: 8}}>
+        <View style={{gap: 10}}>
           <View
             style={{
               flexDirection: 'row',
@@ -224,22 +257,42 @@ export function CardEditorFields({
                 textTransform: 'uppercase',
                 color: libraryTokens.muted,
               }}>
-              Card Architecture
+              Card type
             </Text>
-            <Text
-              style={{
-                fontFamily: fonts.bodyBold,
-                fontSize: 11,
-                letterSpacing: 0.4,
-                color: libraryTokens.primary,
-              }}>
-              {cardType === 'cloze' ? 'Cloze Deletion' : 'Standard 2-Sided'}
-            </Text>
+            {onDelete ? (
+              <Pressable
+                accessibilityLabel="Delete card"
+                accessibilityRole="button"
+                onPress={onDelete}
+                disabled={deleting}
+                hitSlop={6}
+                className="active:opacity-80"
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 999,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: brandColors.dangerBg,
+                  opacity: deleting ? 0.6 : 1,
+                }}>
+                {deleting ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={brandColors.dangerIcon}
+                  />
+                ) : (
+                  <MaterialIcons
+                    name="delete-outline"
+                    size={18}
+                    color={brandColors.dangerIcon}
+                  />
+                )}
+              </Pressable>
+            ) : null}
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{gap: 8, paddingRight: 8}}>
+
+          <View style={{flexDirection: 'row', gap: 8}}>
             {ARCHITECTURE.map(option => {
               const selected = cardType === option.value;
               return (
@@ -250,45 +303,78 @@ export function CardEditorFields({
                   onPress={() => handleArchitecture(option.value)}
                   className="active:opacity-90"
                   style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
+                    flex: 1,
                     gap: 6,
-                    paddingHorizontal: 14,
-                    paddingVertical: 10,
-                    borderRadius: 999,
+                    paddingHorizontal: 12,
+                    paddingVertical: 12,
+                    borderRadius: 16,
                     backgroundColor: selected
                       ? libraryTokens.primaryContainer
                       : brandColors.surface,
                     borderWidth: selected ? 0 : 1,
                     borderColor: libraryTokens.border,
                   }}>
-                  <MaterialIcons
-                    name={option.icon}
-                    size={18}
-                    color={brandColors.charcoal}
-                  />
+                  <View
+                    style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                    <MaterialIcons
+                      name={option.icon}
+                      size={18}
+                      color={brandColors.charcoal}
+                    />
+                    <Text
+                      style={{
+                        fontFamily: selected
+                          ? fonts.bodyBold
+                          : fonts.bodySemiBold,
+                        fontSize: 13,
+                        color: brandColors.charcoal,
+                      }}>
+                      {option.label}
+                    </Text>
+                  </View>
                   <Text
                     style={{
-                      fontFamily: selected ? fonts.bodyBold : fonts.bodySemiBold,
-                      fontSize: 12,
-                      color: brandColors.charcoal,
+                      fontFamily: fonts.body,
+                      fontSize: 11,
+                      lineHeight: 15,
+                      color: libraryTokens.muted,
                     }}>
-                    {option.label}
+                    {option.hint}
                   </Text>
                 </Pressable>
               );
             })}
-          </ScrollView>
-          {cardType === 'cloze' ? (
-            <Text
+          </View>
+
+          {isCloze ? (
+            <View
               style={{
-                fontFamily: fonts.body,
-                fontSize: 12,
-                color: libraryTokens.muted,
-                paddingHorizontal: 4,
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                gap: 8,
+                padding: 12,
+                borderRadius: 14,
+                backgroundColor: brandColors.paleLime,
               }}>
-              Use {'{{c1::hidden term}}'} in the front to create cloze deletions.
-            </Text>
+              <MaterialIcons
+                name="lightbulb-outline"
+                size={18}
+                color={brandColors.olive}
+                style={{marginTop: 1}}
+              />
+              <Text
+                style={{
+                  flex: 1,
+                  fontFamily: fonts.body,
+                  fontSize: 13,
+                  lineHeight: 18,
+                  color: brandColors.charcoal,
+                }}>
+                Write a full sentence, mark the gap with{' '}
+                <Text style={{fontFamily: fonts.bodyBold}}>{CLOZE_BLANK}</Text>,
+                then put only the missing word on the back.
+              </Text>
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -325,7 +411,7 @@ export function CardEditorFields({
                   fontSize: 11,
                   color: libraryTokens.onSecondaryContainer,
                 }}>
-                F
+                {isCloze ? 'S' : 'F'}
               </Text>
             </View>
             <Text
@@ -336,7 +422,7 @@ export function CardEditorFields({
                 textTransform: 'uppercase',
                 color: libraryTokens.muted,
               }}>
-              {cardType === 'cloze' ? 'Cloze Sentence' : 'Front (Prompt / Question)'}
+              {isCloze ? 'Sentence with blank' : 'Front (Prompt / Question)'}
             </Text>
           </View>
           <Text
@@ -349,24 +435,99 @@ export function CardEditorFields({
           </Text>
         </View>
 
-        <FormatBar />
+        {isCloze ? (
+          <View style={{flexDirection: 'row', gap: 8}}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                selection.start !== selection.end
+                  ? 'Hide selected word as blank'
+                  : 'Insert blank'
+              }
+              onPress={insertOrHideBlank}
+              className="active:opacity-90"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 999,
+                backgroundColor: libraryTokens.primaryContainer,
+              }}>
+              <MaterialIcons
+                name="space-bar"
+                size={16}
+                color={brandColors.charcoal}
+              />
+              <Text
+                style={{
+                  fontFamily: fonts.bodyBold,
+                  fontSize: 12,
+                  color: brandColors.charcoal,
+                }}>
+                {selection.start !== selection.end
+                  ? 'Hide selection'
+                  : `Insert ${CLOZE_BLANK}`}
+              </Text>
+            </Pressable>
+            {hasBlank ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  paddingHorizontal: 10,
+                  borderRadius: 999,
+                  backgroundColor: libraryTokens.surfaceContainerLow,
+                }}>
+                <MaterialIcons
+                  name="check-circle"
+                  size={14}
+                  color={brandColors.olive}
+                />
+                <Text
+                  style={{
+                    fontFamily: fonts.bodySemiBold,
+                    fontSize: 11,
+                    color: brandColors.olive,
+                  }}>
+                  Blank ready
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         <View
           style={{
             backgroundColor: libraryTokens.surfaceContainerLow,
             borderRadius: 14,
             padding: 12,
-            minHeight: 96,
+            minHeight: isCloze ? 110 : 96,
             borderWidth: questionError ? 1.5 : 0,
             borderColor: libraryTokens.error,
           }}>
           <TextInput
+            ref={questionRef}
             value={question}
-            onChangeText={text => onQuestionChange(text.slice(0, FRONT_MAX))}
+            onChangeText={text => {
+              let next = text.slice(0, FRONT_MAX);
+              if (isCloze && /\{\{c\d+::/i.test(next)) {
+                const converted = convertAnkiCloze(next);
+                if (converted) {
+                  onQuestionChange(converted.question);
+                  if (!answer.trim()) onAnswerChange(converted.answer);
+                  return;
+                }
+              }
+              onQuestionChange(next);
+            }}
+            onSelectionChange={onSelectionChange}
             multiline
             placeholder={
-              cardType === 'cloze'
-                ? 'The {{c1::mitochondria}} is the powerhouse of the cell.'
+              isCloze
+                ? `The ${CLOZE_BLANK} is the powerhouse of the cell.`
                 : 'Type prompt or question...'
             }
             placeholderTextColor={`${libraryTokens.muted}80`}
@@ -375,7 +536,7 @@ export function CardEditorFields({
               fontSize: 16,
               lineHeight: 22,
               color: libraryTokens.ink,
-              minHeight: 72,
+              minHeight: isCloze ? 86 : 72,
               textAlignVertical: 'top',
               padding: 0,
             }}
@@ -389,6 +550,16 @@ export function CardEditorFields({
               color: libraryTokens.error,
             }}>
             {questionError}
+          </Text>
+        ) : isCloze && question.trim() && !hasBlank ? (
+          <Text
+            style={{
+              fontFamily: fonts.body,
+              fontSize: 12,
+              color: libraryTokens.muted,
+            }}>
+            Tip: select the word to hide, then tap Hide selection — or insert{' '}
+            {CLOZE_BLANK} manually.
           </Text>
         ) : null}
       </View>
@@ -425,7 +596,7 @@ export function CardEditorFields({
                   fontSize: 11,
                   color: libraryTokens.tertiary,
                 }}>
-                B
+                {isCloze ? 'A' : 'B'}
               </Text>
             </View>
             <Text
@@ -436,7 +607,9 @@ export function CardEditorFields({
                 textTransform: 'uppercase',
                 color: libraryTokens.muted,
               }}>
-              Back (Target Concept & Definition)
+              {isCloze
+                ? 'Answer (missing word / phrase)'
+                : 'Back (Target Concept & Definition)'}
             </Text>
           </View>
           <Text
@@ -449,68 +622,73 @@ export function CardEditorFields({
           </Text>
         </View>
 
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8,
-          }}>
-          <FormatBar compact />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Polish with AI"
-            disabled={polishing}
-            onPress={handlePolish}
-            className="active:opacity-90"
+        {!isCloze ? (
+          <View
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              gap: 6,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 999,
-              backgroundColor: libraryTokens.secondaryContainer,
-              opacity: polishing ? 0.7 : 1,
+              justifyContent: 'flex-end',
+              gap: 8,
             }}>
-            <MaterialIcons
-              name={polishing ? 'sync' : 'auto-fix-high'}
-              size={16}
-              color={libraryTokens.onSecondaryContainer}
-            />
-            <Text
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Polish with AI"
+              disabled={polishing}
+              onPress={handlePolish}
+              className="active:opacity-90"
               style={{
-                fontFamily: fonts.bodyBold,
-                fontSize: 12,
-                color: libraryTokens.onSecondaryContainer,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 999,
+                backgroundColor: libraryTokens.secondaryContainer,
+                opacity: polishing ? 0.7 : 1,
               }}>
-              {polishing ? 'Polishing…' : 'Polish with AI'}
-            </Text>
-          </Pressable>
-        </View>
+              <MaterialIcons
+                name={polishing ? 'sync' : 'auto-fix-high'}
+                size={16}
+                color={libraryTokens.onSecondaryContainer}
+              />
+              <Text
+                style={{
+                  fontFamily: fonts.bodyBold,
+                  fontSize: 12,
+                  color: libraryTokens.onSecondaryContainer,
+                }}>
+                {polishing ? 'Polishing…' : 'Polish with AI'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View
           style={{
             backgroundColor: libraryTokens.surfaceContainerLow,
             borderRadius: 14,
             padding: 12,
-            minHeight: 120,
+            minHeight: isCloze ? 72 : 120,
             borderWidth: answerError ? 1.5 : 0,
             borderColor: libraryTokens.error,
           }}>
           <TextInput
             value={answer}
             onChangeText={text => onAnswerChange(text.slice(0, BACK_MAX))}
-            multiline
-            placeholder="Write full concept definition..."
+            multiline={!isCloze}
+            placeholder={
+              isCloze
+                ? 'e.g. mitochondria'
+                : 'Write full concept definition...'
+            }
             placeholderTextColor={`${libraryTokens.muted}80`}
             style={{
-              fontFamily: fonts.body,
-              fontSize: 14,
-              lineHeight: 20,
+              fontFamily: isCloze ? fonts.bodySemiBold : fonts.body,
+              fontSize: isCloze ? 18 : 14,
+              lineHeight: isCloze ? 24 : 20,
               color: libraryTokens.ink,
-              minHeight: 96,
-              textAlignVertical: 'top',
+              minHeight: isCloze ? 48 : 96,
+              textAlignVertical: isCloze ? 'center' : 'top',
               padding: 0,
             }}
           />
@@ -524,174 +702,77 @@ export function CardEditorFields({
             }}>
             {answerError}
           </Text>
+        ) : isCloze ? (
+          <Text
+            style={{
+              fontFamily: fonts.body,
+              fontSize: 12,
+              color: libraryTokens.muted,
+            }}>
+            Keep this short — only what fills the blank during review.
+          </Text>
         ) : null}
       </View>
 
-      {/* Retention Accelerator */}
-      <View
-        style={{
-          backgroundColor: 'rgba(223, 233, 190, 0.35)',
-          borderRadius: 20,
-          padding: 16,
-          gap: 12,
-        }}>
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
-            <View
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 999,
-                backgroundColor: libraryTokens.primaryContainer,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-              <MaterialIcons
-                name="psychology"
-                size={16}
-                color={brandColors.charcoal}
-              />
-            </View>
-            <Text
-              style={{
-                fontFamily: fonts.bodyBold,
-                fontSize: 16,
-                color: libraryTokens.ink,
-              }}>
-              Retention Accelerator
-            </Text>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            onPress={handleAutoTune}
-            className="active:opacity-90"
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4,
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-              borderRadius: 999,
-              backgroundColor: brandColors.surface,
-            }}>
-            <MaterialIcons name="refresh" size={14} color={libraryTokens.primary} />
-            <Text
-              style={{
-                fontFamily: fonts.bodyBold,
-                fontSize: 11,
-                letterSpacing: 0.4,
-                color: libraryTokens.ink,
-              }}>
-              Auto-Tune
-            </Text>
-          </Pressable>
-        </View>
-
+      {onHintChange || onExplanationChange ? (
         <View
           style={{
             backgroundColor: brandColors.surface,
-            borderRadius: 14,
-            padding: 12,
-            gap: 10,
+            borderRadius: 20,
+            padding: 16,
+            gap: 12,
+            borderWidth: 1,
+            borderColor: libraryTokens.borderSubtle,
           }}>
-          <View style={{flexDirection: 'row', alignItems: 'flex-start', gap: 8}}>
-            <MaterialIcons
-              name="tips-and-updates"
-              size={18}
-              color={libraryTokens.primary}
-              style={{marginTop: 2}}
-            />
-            <Text
-              style={{
-                flex: 1,
-                fontFamily: fonts.body,
-                fontSize: 12,
-                lineHeight: 16,
-                color: libraryTokens.ink,
-              }}>
-              <Text style={{fontFamily: fonts.bodyBold}}>Core Takeaway: </Text>
-              {takeaway}
-            </Text>
-          </View>
-          <View
+          <Text
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 8,
-              padding: 8,
-              borderRadius: 10,
-              backgroundColor: 'rgba(207, 238, 139, 0.35)',
+              fontFamily: fonts.bodyBold,
+              fontSize: 11,
+              letterSpacing: 0.66,
+              textTransform: 'uppercase',
+              color: libraryTokens.muted,
             }}>
-            <Text
+            Optional extras
+          </Text>
+          {onHintChange ? (
+            <TextInput
+              value={hint}
+              onChangeText={onHintChange}
+              placeholder="Hint (shown during review)"
+              placeholderTextColor={`${libraryTokens.muted}80`}
               style={{
-                fontFamily: fonts.bodyBold,
-                fontSize: 11,
-                letterSpacing: 0.66,
-                textTransform: 'uppercase',
-                color: libraryTokens.primary,
-              }}>
-              Mnemonic
-            </Text>
-            <Text
-              style={{
-                flex: 1,
+                backgroundColor: libraryTokens.surfaceContainerLow,
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
                 fontFamily: fonts.body,
-                fontSize: 12,
-                lineHeight: 16,
+                fontSize: 13,
                 color: libraryTokens.ink,
-              }}>
-              {mnemonic}
-            </Text>
-          </View>
+              }}
+            />
+          ) : null}
+          {onExplanationChange ? (
+            <TextInput
+              value={explanation}
+              onChangeText={onExplanationChange}
+              multiline
+              placeholder="Explanation / takeaway"
+              placeholderTextColor={`${libraryTokens.muted}80`}
+              style={{
+                backgroundColor: libraryTokens.surfaceContainerLow,
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                minHeight: 64,
+                fontFamily: fonts.body,
+                fontSize: 13,
+                color: libraryTokens.ink,
+                textAlignVertical: 'top',
+              }}
+            />
+          ) : null}
         </View>
-
-        {onHintChange || onExplanationChange ? (
-          <View style={{gap: 8}}>
-            {onHintChange ? (
-              <TextInput
-                value={hint}
-                onChangeText={onHintChange}
-                placeholder="Edit mnemonic / hint"
-                placeholderTextColor={`${libraryTokens.muted}80`}
-                style={{
-                  backgroundColor: brandColors.surface,
-                  borderRadius: 12,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  fontFamily: fonts.body,
-                  fontSize: 13,
-                  color: libraryTokens.ink,
-                }}
-              />
-            ) : null}
-            {onExplanationChange ? (
-              <TextInput
-                value={explanation}
-                onChangeText={onExplanationChange}
-                multiline
-                placeholder="Edit explanation / takeaway"
-                placeholderTextColor={`${libraryTokens.muted}80`}
-                style={{
-                  backgroundColor: brandColors.surface,
-                  borderRadius: 12,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  minHeight: 64,
-                  fontFamily: fonts.body,
-                  fontSize: 13,
-                  color: libraryTokens.ink,
-                  textAlignVertical: 'top',
-                }}
-              />
-            ) : null}
-          </View>
-        ) : null}
-      </View>
+      ) : null}
 
       {/* Live preview */}
       {showPreview ? (
@@ -711,7 +792,7 @@ export function CardEditorFields({
                 textTransform: 'uppercase',
                 color: libraryTokens.muted,
               }}>
-              Real-Time Study Simulation
+              {isCloze ? 'Blank preview' : 'Real-Time Study Simulation'}
             </Text>
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
               <MaterialIcons
@@ -725,7 +806,7 @@ export function CardEditorFields({
                   fontSize: 11,
                   color: libraryTokens.primary,
                 }}>
-                Interactive
+                Tap to flip
               </Text>
             </View>
           </View>
@@ -765,7 +846,13 @@ export function CardEditorFields({
                     textTransform: 'uppercase',
                     color: brandColors.charcoal,
                   }}>
-                  {previewFront ? 'Front View' : 'Back Answer'}
+                  {previewFront
+                    ? isCloze
+                      ? 'Prompt (blank)'
+                      : 'Front View'
+                    : isCloze
+                      ? 'Revealed'
+                      : 'Back Answer'}
                 </Text>
               </View>
               <MaterialIcons
@@ -774,7 +861,7 @@ export function CardEditorFields({
                 color={`${libraryTokens.muted}66`}
               />
             </View>
-            <View style={{minHeight: 110, justifyContent: 'center'}}>
+            <View style={{minHeight: 110, justifyContent: 'center', gap: 10}}>
               <Text
                 style={{
                   fontFamily: fonts.bodySemiBold,
@@ -783,37 +870,37 @@ export function CardEditorFields({
                   color: libraryTokens.ink,
                   textAlign: 'center',
                 }}>
-                {previewFront
-                  ? question.trim() || 'Your question appears here'
-                  : answer.trim() || 'Your answer appears here'}
+                {previewFront ? previewFrontText : previewBackText}
               </Text>
+              {!previewFront && isCloze && answer.trim() ? (
+                <View
+                  style={{
+                    alignSelf: 'center',
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 999,
+                    backgroundColor: brandColors.paleLime,
+                  }}>
+                  <Text
+                    style={{
+                      fontFamily: fonts.bodyBold,
+                      fontSize: 13,
+                      color: brandColors.olive,
+                    }}>
+                    {answer.trim()}
+                  </Text>
+                </View>
+              ) : null}
             </View>
             <View
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                justifyContent: 'space-between',
+                justifyContent: 'flex-end',
                 paddingTop: 12,
                 borderTopWidth: 1,
                 borderTopColor: libraryTokens.borderSubtle,
               }}>
-              <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
-                <MaterialIcons
-                  name="bar-chart"
-                  size={14}
-                  color={`${libraryTokens.muted}99`}
-                />
-                <Text
-                  style={{
-                    fontFamily: fonts.body,
-                    fontSize: 12,
-                    color: `${libraryTokens.muted}99`,
-                  }}>
-                  {retention
-                    ? `Level ${Math.min(5, retention.repetitions)} · ${retention.intervalDays}d interval`
-                    : 'New card · ready to schedule'}
-                </Text>
-              </View>
               <Text
                 style={{
                   fontFamily: fonts.bodyBold,
@@ -828,158 +915,6 @@ export function CardEditorFields({
           </Pressable>
         </View>
       ) : null}
-
-      {/* Meta + retention */}
-      <View
-        style={{
-          backgroundColor: brandColors.surface,
-          borderRadius: 20,
-          padding: 16,
-          gap: 16,
-          borderWidth: 1,
-          borderColor: libraryTokens.borderSubtle,
-        }}>
-        {retention ? (
-          <View
-            style={{
-              padding: 12,
-              borderRadius: 14,
-              backgroundColor: libraryTokens.surfaceContainerLow,
-              gap: 8,
-            }}>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}>
-              <Text
-                style={{
-                  fontFamily: fonts.bodyBold,
-                  fontSize: 11,
-                  letterSpacing: 0.5,
-                  textTransform: 'uppercase',
-                  color: libraryTokens.muted,
-                }}>
-                Memory Retention Health
-              </Text>
-              <Text
-                style={{
-                  fontFamily: fonts.bodyBold,
-                  fontSize: 12,
-                  color: libraryTokens.primary,
-                }}>
-                {retention.percent}% ({retention.label})
-              </Text>
-            </View>
-            <View
-              style={{
-                height: 8,
-                borderRadius: 999,
-                backgroundColor: libraryTokens.border,
-                overflow: 'hidden',
-              }}>
-              <View
-                style={{
-                  height: '100%',
-                  width: `${Math.max(4, Math.min(100, retention.percent))}%`,
-                  borderRadius: 999,
-                  backgroundColor: libraryTokens.primaryContainer,
-                }}
-              />
-            </View>
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-              }}>
-              <Text
-                style={{
-                  fontFamily: fonts.bodyBold,
-                  fontSize: 11,
-                  color: libraryTokens.muted,
-                }}>
-                {retention.dueLabel}
-              </Text>
-              <Text
-                style={{
-                  fontFamily: fonts.bodyBold,
-                  fontSize: 11,
-                  color: libraryTokens.muted,
-                }}>
-                Repetition #{retention.repetitions}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1}}>
-            <View
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                backgroundColor: 'rgba(207, 238, 139, 0.5)',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-              <MaterialIcons
-                name="extension"
-                size={22}
-                color={libraryTokens.primary}
-              />
-            </View>
-            <View style={{flex: 1}}>
-              <Text
-                style={{
-                  fontFamily: fonts.bodyBold,
-                  fontSize: 16,
-                  color: libraryTokens.ink,
-                }}>
-                Add Cloze Deletion
-              </Text>
-              <Text
-                style={{
-                  fontFamily: fonts.body,
-                  fontSize: 12,
-                  color: libraryTokens.muted,
-                }}>
-                Hide terms inside sentence brackets
-              </Text>
-            </View>
-          </View>
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityState={{checked: clozeEnabled}}
-            onPress={handleClozeToggle}
-            style={{
-              width: 48,
-              height: 28,
-              borderRadius: 999,
-              padding: 2,
-              backgroundColor: clozeEnabled
-                ? libraryTokens.primaryContainer
-                : libraryTokens.border,
-              justifyContent: 'center',
-            }}>
-            <View
-              style={{
-                width: 24,
-                height: 24,
-                borderRadius: 999,
-                backgroundColor: brandColors.surface,
-                alignSelf: clozeEnabled ? 'flex-end' : 'flex-start',
-              }}
-            />
-          </Pressable>
-        </View>
-      </View>
     </View>
   );
 }

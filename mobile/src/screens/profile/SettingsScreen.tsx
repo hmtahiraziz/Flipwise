@@ -2,12 +2,14 @@ import {useAuth, useSSO, useUser} from '@clerk/clerk-expo';
 import * as WebBrowser from 'expo-web-browser';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useCallback, useState} from 'react';
-import {Alert, Linking, Pressable, ScrollView, Text, View} from 'react-native';
+import {Linking, Pressable, ScrollView, Text, View} from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {googleOAuthRedirectUrl} from '../../auth/googleOAuth';
-import {ProfileAvatar} from '../../components/profile/ProfileAvatar';
+import {HeaderProfileButton} from '../../components/profile/HeaderProfileButton';
 import {ProfileScreenHeader} from '../../components/profile/ProfileScreenHeader';
+import {appAlert} from '../../components/ui/AppAlert';
 import {
+  SettingsDeleteAccountButton,
   SettingsGoogleRow,
   SettingsSignOutButton,
 } from '../../components/profile/SettingsActions';
@@ -22,41 +24,41 @@ import {
   SettingsToggleRow,
 } from '../../components/profile/SettingsRows';
 import {APP_VERSION, SUPPORT_EMAIL} from '../../config/app';
-import {colors, fonts} from '../../config/theme';
+import {fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 import {useAppUser} from '../../hooks/useAppUser';
 import {useLibraryLayout} from '../../hooks/useLibraryLayout';
-import {useProfileNavigation} from '../../hooks/useProfileNavigation';
+import {useProfileStackBack} from '../../hooks/useProfileStackBack';
 import {getClerkAccountPortalUrl} from '../../lib/clerkAccount';
 import {getApiErrorMessage} from '../../lib/errors';
+import {deleteAccountRequest} from '../../services/api/authApi';
+import {clearLocalUserData} from '../../storage/clearLocalUserData';
 import {toast} from '../../components/ui/Toast';
 import type {ProfileRoutesParamList} from '../../navigation/types';
 import {useTheme} from '../../theme/ThemeProvider';
-import type {ThemePreference} from '../../storage/preferencesStorage';
 
 type Props = NativeStackScreenProps<ProfileRoutesParamList, 'Settings'>;
 
-const THEME_OPTIONS: Array<{value: ThemePreference; label: string}> = [
-  {value: 'light', label: 'Light'},
-  {value: 'dark', label: 'Dark'},
-  {value: 'system', label: 'System'},
-];
-
 export function SettingsScreen({navigation}: Props) {
   const layout = useLibraryLayout();
+  const onBack = useProfileStackBack(navigation);
   const {signOut} = useAuth();
   const {user: clerkUser} = useUser();
   const {user} = useAppUser();
-  const {openPrivacyPolicy, openTermsOfService, openEditProfile} =
-    useProfileNavigation();
   const {startSSOFlow} = useSSO();
   const [connectingGoogle, setConnectingGoogle] = useState(false);
-  const {
-    preference,
-    preferences,
-    setThemePreference,
-    updatePreferences,
-  } = useTheme();
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const {preferences, updatePreferences} = useTheme();
+
+  const openEditProfile = useCallback(() => {
+    navigation.navigate('EditProfile');
+  }, [navigation]);
+  const openPrivacyPolicy = useCallback(() => {
+    navigation.navigate('PrivacyPolicy');
+  }, [navigation]);
+  const openTermsOfService = useCallback(() => {
+    navigation.navigate('TermsOfService');
+  }, [navigation]);
 
   const hasGoogle =
     clerkUser?.externalAccounts.some(account => account.provider === 'google') ??
@@ -107,7 +109,7 @@ export function SettingsScreen({navigation}: Props) {
   }, [startSSOFlow]);
 
   const confirmSignOut = useCallback(() => {
-    Alert.alert('Sign out', 'Are you sure you want to sign out of Flipwise?', [
+    appAlert('Sign out', 'Are you sure you want to sign out of Cardweave?', [
       {text: 'Cancel', style: 'cancel'},
       {
         text: 'Sign out',
@@ -117,6 +119,48 @@ export function SettingsScreen({navigation}: Props) {
     ]);
   }, [signOut]);
 
+  const performAccountDeletion = useCallback(async () => {
+    setDeletingAccount(true);
+    try {
+      await deleteAccountRequest();
+      clearLocalUserData();
+      await signOut();
+      toast.success('Account deleted', 'Your Cardweave data has been removed.');
+    } catch (error) {
+      toast.error('Could not delete account', getApiErrorMessage(error));
+    } finally {
+      setDeletingAccount(false);
+    }
+  }, [signOut]);
+
+  const confirmDeleteAccount = useCallback(() => {
+    appAlert(
+      'Delete account?',
+      'This permanently deletes your decks, cards, review history, and profile from Cardweave. This cannot be undone.',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            appAlert(
+              'Confirm deletion',
+              'Are you sure you want to permanently delete your account?',
+              [
+                {text: 'Cancel', style: 'cancel'},
+                {
+                  text: 'Delete permanently',
+                  style: 'destructive',
+                  onPress: () => void performAccountDeletion(),
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
+  }, [performAccountDeletion]);
+
   const adjustDailyGoal = useCallback(
     (delta: number) => {
       const next = Math.max(1, Math.min(500, preferences.dailyGoal + delta));
@@ -125,35 +169,14 @@ export function SettingsScreen({navigation}: Props) {
     [preferences.dailyGoal, updatePreferences],
   );
 
-  const headerAvatar = (
-    <Pressable
-      onPress={openEditProfile}
-      hitSlop={8}
-      accessibilityLabel="Edit profile"
-      accessibilityRole="button"
-      className="active:opacity-80"
-      style={{
-        width: 32,
-        height: 32,
-        borderRadius: 999,
-        overflow: 'hidden',
-        backgroundColor: colors.surfaceContainer,
-      }}>
-      <ProfileAvatar
-        name={user?.name}
-        email={user?.email}
-        imageUrl={user?.avatarUrl}
-        size={32}
-      />
-    </Pressable>
-  );
-
   return (
     <View className="flex-1" style={{backgroundColor: libraryTokens.background}}>
       <ProfileScreenHeader
         title="Settings"
-        onBack={() => navigation.goBack()}
-        right={headerAvatar}
+        onBack={onBack}
+        right={
+          <HeaderProfileButton size={32} onPress={openEditProfile} />
+        }
       />
 
       <ScrollView
@@ -179,61 +202,15 @@ export function SettingsScreen({navigation}: Props) {
             connecting={connectingGoogle}
             onConnect={hasGoogle ? undefined : () => void connectGoogle()}
           />
+          <SettingsCardDivider />
+          <SettingsLinkRow
+            label="Edit profile"
+            icon="person"
+            onPress={openEditProfile}
+          />
         </SettingsSectionCard>
 
-        <SettingsSectionCard title="Appearance & Study">
-          <View style={{paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8}}>
-            <Text
-              style={{
-                fontFamily: fonts.bodySemiBold,
-                fontSize: 16,
-                lineHeight: 24,
-                color: libraryTokens.ink,
-                marginBottom: 12,
-              }}>
-              Theme
-            </Text>
-            <View className="flex-row" style={{gap: 8}}>
-              {THEME_OPTIONS.map(option => {
-                const selected = preference === option.value;
-                return (
-                  <Pressable
-                    key={option.value}
-                    onPress={() => setThemePreference(option.value)}
-                    accessibilityRole="button"
-                    accessibilityState={{selected}}
-                    className="active:opacity-90"
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 12,
-                      alignItems: 'center',
-                      borderWidth: 1,
-                      borderColor: selected
-                        ? libraryTokens.primaryContainer
-                        : libraryTokens.border,
-                      backgroundColor: selected
-                        ? libraryTokens.primaryContainer
-                        : libraryTokens.surface,
-                    }}>
-                    <Text
-                      style={{
-                        fontFamily: fonts.bodySemiBold,
-                        fontSize: 13,
-                        color: selected
-                          ? libraryTokens.onPrimaryContainer
-                          : libraryTokens.muted,
-                      }}>
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-
-          <SettingsCardDivider />
-
+        <SettingsSectionCard title="Study">
           <View
             className="flex-row items-center justify-between"
             style={{paddingHorizontal: 20, paddingVertical: 16, gap: 12}}>
@@ -307,49 +284,9 @@ export function SettingsScreen({navigation}: Props) {
           <SettingsCardDivider />
           <SettingsToggleRow
             label="Reduced motion"
-            subtitle="Limit animations"
+            subtitle="Limit animations in review"
             value={preferences.reducedMotion}
             onValueChange={value => updatePreferences({reducedMotion: value})}
-          />
-          <SettingsCardDivider />
-          <SettingsToggleRow
-            label="Haptics"
-            subtitle="Vibration feedback"
-            value={preferences.haptics}
-            onValueChange={value => updatePreferences({haptics: value})}
-          />
-          <SettingsCardDivider />
-          <SettingsToggleRow
-            label="Sound"
-            subtitle="Review sound effects"
-            value={preferences.sound}
-            onValueChange={value => updatePreferences({sound: value})}
-          />
-        </SettingsSectionCard>
-
-        <SettingsSectionCard title="Notifications">
-          <SettingsToggleRow
-            label="Study reminders"
-            subtitle="Daily nudge when cards are due"
-            value={preferences.remindersEnabled}
-            onValueChange={value => {
-              updatePreferences({remindersEnabled: value});
-              toast.success(
-                value ? 'Reminders on' : 'Reminders off',
-                value
-                  ? 'We will notify you when reviews are waiting.'
-                  : 'You will not receive study reminder notifications.',
-              );
-            }}
-          />
-          <SettingsCardDivider />
-          <SettingsToggleRow
-            label="Quiet hours"
-            subtitle={`${preferences.quietHoursStart} – ${preferences.quietHoursEnd}`}
-            value={preferences.quietHoursEnabled}
-            onValueChange={value =>
-              updatePreferences({quietHoursEnabled: value})
-            }
           />
         </SettingsSectionCard>
 
@@ -369,14 +306,19 @@ export function SettingsScreen({navigation}: Props) {
           <SettingsLinkRow
             label="Terms of Service"
             icon="description"
-            trailingIcon="open-in-new"
             onPress={openTermsOfService}
           />
         </SettingsSectionCard>
 
         <SettingsVersionBadge version={APP_VERSION} />
 
-        <SettingsSignOutButton onPress={confirmSignOut} />
+        <View style={{gap: 12}}>
+          <SettingsSignOutButton onPress={confirmSignOut} />
+          <SettingsDeleteAccountButton
+            onPress={confirmDeleteAccount}
+            loading={deletingAccount}
+          />
+        </View>
       </ScrollView>
     </View>
   );

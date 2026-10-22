@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Flipwise</string>
+	<string>Cardweave</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -36,9 +36,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string/>
 	<key>NSCameraUsageDescription</key>
-	<string>Flipwise uses the camera to scan handwritten or printed study notes.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Flipwise accesses your photos so you can import scanned notes.</string>
+	<string>Cardweave uses the camera to scan handwritten or printed study notes and for optional profile photos.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
@@ -63,7 +61,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>flipwise</string>
+				<string>cardweave</string>
 			</array>
 		</dict>
 	</array>

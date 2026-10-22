@@ -324,6 +324,18 @@ export function ExplainAiSheet({
                     </Text>
                   </View>
                 ) : null}
+
+                <Text
+                  style={{
+                    fontFamily: fonts.body,
+                    fontSize: 12,
+                    lineHeight: 17,
+                    color: reviewTokens.muted,
+                    marginTop: 4,
+                  }}>
+                  AI coaching can be imperfect — same limits as card generation.
+                  Double-check against your notes.
+                </Text>
               </>
             ) : null}
           </ScrollView>

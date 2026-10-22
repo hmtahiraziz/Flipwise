@@ -1,29 +1,28 @@
 import {zodResolver} from '@hookform/resolvers/zod';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {useEffect} from 'react';
+import {useEffect, useState} from 'react';
 import {useForm} from 'react-hook-form';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
-  Pressable,
-  ScrollView,
   Text,
   View,
 } from 'react-native';
+import {KeyboardAwareScrollView} from 'react-native-keyboard-controller';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {DeckDetailHeader} from '../../components/deck/DeckDetailHeader';
 import {DeckEditorFields} from '../../components/deck/DeckEditorFields';
 import {DeckFormFooter} from '../../components/deck/DeckFormFooter';
-import {ProfileAvatar} from '../../components/profile/ProfileAvatar';
+import {HeaderProfileButton} from '../../components/profile/HeaderProfileButton';
+import {appAlert} from '../../components/ui/AppAlert';
+import {keyboardScrollProps} from '../../components/ui/KeyboardSafeView';
 import {toast} from '../../components/ui/Toast';
-import {colors, fonts} from '../../config/theme';
+import {brandColors, colors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 import {getApiErrorMessage} from '../../lib/errors';
 import {deckSchema, type DeckFormValues} from '../../lib/schemas';
-import {useAppUser} from '../../hooks/useAppUser';
 import {useDeck, useDeckMutations} from '../../hooks/useDecks';
 import {useLibraryLayout} from '../../hooks/useLibraryLayout';
-import {useProfileNavigation} from '../../hooks/useProfileNavigation';
 import type {LibraryStackParamList} from '../../navigation/types';
 
 type Props = NativeStackScreenProps<LibraryStackParamList, 'EditDeck'>;
@@ -31,10 +30,11 @@ type Props = NativeStackScreenProps<LibraryStackParamList, 'EditDeck'>;
 export function EditDeckScreen({navigation, route}: Props) {
   const {deckId} = route.params;
   const layout = useLibraryLayout();
-  const {user} = useAppUser();
-  const {openProfile} = useProfileNavigation();
+  const insets = useSafeAreaInsets();
   const {data: deck, isLoading, error} = useDeck(deckId);
-  const {updateDeck} = useDeckMutations();
+  const {updateDeck, deleteDeck} = useDeckMutations();
+  const [deleting, setDeleting] = useState(false);
+  const safeBottom = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 8);
 
   const {
     handleSubmit,
@@ -61,32 +61,33 @@ export function EditDeckScreen({navigation, route}: Props) {
     }
   }, [deck, reset]);
 
-  const tabClearance = layout.tabScrollBottomPadding;
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteDeck(deckId);
+      toast.success('Deck deleted');
+      navigation.popToTop();
+    } catch (err) {
+      toast.error('Could not delete deck', getApiErrorMessage(err));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
-  const headerRight = (
-    <Pressable
-      onPress={openProfile}
-      hitSlop={8}
-      accessibilityLabel="Profile"
-      accessibilityRole="button"
-      className="active:opacity-80"
-      style={{
-        width: 40,
-        height: 40,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: libraryTokens.border,
-        overflow: 'hidden',
-        backgroundColor: colors.surfaceContainer,
-      }}>
-      <ProfileAvatar
-        name={user?.name}
-        email={user?.email}
-        imageUrl={user?.avatarUrl}
-        size={40}
-      />
-    </Pressable>
-  );
+  const confirmDelete = () => {
+    appAlert(
+      'Delete deck',
+      'This will permanently delete the deck and all its cards.',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => void handleDelete(),
+        },
+      ],
+    );
+  };
 
   const onSubmit = handleSubmit(async values => {
     try {
@@ -95,6 +96,7 @@ export function EditDeckScreen({navigation, route}: Props) {
         subject: values.subject.trim(),
         description: values.description?.trim() || undefined,
       });
+      toast.success('Deck updated');
       navigation.goBack();
     } catch (err) {
       toast.error('Could not update deck', getApiErrorMessage(err));
@@ -142,15 +144,15 @@ export function EditDeckScreen({navigation, route}: Props) {
         titleColor={libraryTokens.ink}
         backIconColor={libraryTokens.ink}
         onBack={() => navigation.goBack()}
-        right={headerRight}
+        right={<HeaderProfileButton size={32} />}
+        bordered={false}
       />
 
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={layout.insets.top + 64}>
-        <ScrollView
+      <View className="flex-1">
+        <KeyboardAwareScrollView
           className="flex-1"
+          bottomOffset={24}
+          {...keyboardScrollProps}
           contentContainerStyle={{
             paddingHorizontal: layout.horizontalPadding,
             paddingTop: 24,
@@ -159,7 +161,6 @@ export function EditDeckScreen({navigation, route}: Props) {
             width: '100%',
             alignSelf: 'center',
           }}
-          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <Text
             style={{
@@ -184,16 +185,18 @@ export function EditDeckScreen({navigation, route}: Props) {
             titleError={errors.title?.message}
             subjectError={errors.subject?.message}
             descriptionError={errors.description?.message}
+            onDelete={confirmDelete}
+            deleting={deleting}
           />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+      </View>
 
-      <View style={{paddingBottom: tabClearance}}>
+      <View style={{paddingBottom: safeBottom, backgroundColor: brandColors.surface}}>
         <DeckFormFooter
           label="Save changes"
           saving={isSubmitting}
-          disabled={!isDirty}
-          variant="create"
+          disabled={!isDirty || deleting}
+          onCancel={() => navigation.goBack()}
           onPress={() => void onSubmit()}
         />
       </View>

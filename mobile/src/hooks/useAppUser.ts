@@ -29,6 +29,7 @@ export function useAppUser() {
     clerkUser?.primaryEmailAddress?.emailAddress ||
     '';
 
+  // Prefer Clerk (source of truth after setProfileImage), then Neon /me sync.
   const avatarUrl =
     clerkUser?.imageUrl ||
     user?.avatarUrl ||

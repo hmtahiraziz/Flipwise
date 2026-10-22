@@ -22,6 +22,20 @@ apiClient.interceptors.request.use(async config => {
       config.headers.Authorization = `Bearer ${token}`;
     }
   }
+
+  // React Native Android rejects FormData when Content-Type is forced to
+  // application/json or bare multipart/form-data (missing boundary).
+  // Leave Content-Type unset so the native stack can set the boundary.
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    const headers = config.headers;
+    if (headers && typeof headers.set === 'function') {
+      headers.set('Content-Type', null);
+    } else if (headers) {
+      delete (headers as Record<string, unknown>)['Content-Type'];
+      delete (headers as Record<string, unknown>)['content-type'];
+    }
+  }
+
   return config;
 });
 

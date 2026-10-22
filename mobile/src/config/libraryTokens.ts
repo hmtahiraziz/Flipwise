@@ -27,10 +27,12 @@ export const libraryTokens = {
   navBarBottomInset: 16,
   navBarTopInset: 8,
   navBarPadding: 6,
-  navTabPaddingX: 12,
+  navBarRadius: 28,
+  navTabRadius: 16,
+  navTabPaddingX: 4,
   navTabPaddingY: 8,
   navIconSize: 22,
-  navLabelSize: 10,
+  navLabelSize: 9,
   navBarClearance: layout.tabBarClearance,
   minTapTarget: layout.minTouchTarget,
   containerPadding: 16,
@@ -51,7 +53,13 @@ export const libraryFabShadow = {
   elevation: 12,
 } as const;
 
-export const libraryNavShadow = elevation.tier2;
+export const libraryNavShadow = {
+  shadowColor: brandColors.charcoal,
+  shadowOffset: {width: 0, height: 6},
+  shadowOpacity: 0.12,
+  shadowRadius: 14,
+  elevation: 6,
+} as const;
 
 export type DeckStatusVariant = 'excellent' | 'active' | 'new';
 

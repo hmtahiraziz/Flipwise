@@ -49,7 +49,10 @@ export function Button({
       className={`px-5 flex-row items-center justify-center ${variantClasses[variant]} ${isDisabled ? 'opacity-50' : ''} ${className ?? ''}`}
       style={({pressed}) => [
         {
+          height: layout.ctaHeight,
           minHeight: layout.ctaHeight,
+          paddingVertical: 14,
+          paddingHorizontal: 20,
           borderRadius: 999,
           transform: [{scale: pressed && !isDisabled ? 0.98 : 1}],
         },

@@ -10,6 +10,8 @@ import {ProfileScreen} from '../screens/profile/ProfileScreen';
 import {SettingsScreen} from '../screens/profile/SettingsScreen';
 import {HomeScreen} from '../screens/home/HomeScreen';
 import {StudyPlannerScreen} from '../screens/home/StudyPlannerScreen';
+import {QuizSessionScreen} from '../screens/progress/QuizSessionScreen';
+import {ReviewSessionScreen} from '../screens/reviews/ReviewSessionScreen';
 import type {HomeStackParamList} from './types';
 
 const Stack = createNativeStackNavigator<HomeStackParamList>();
@@ -26,6 +28,20 @@ export function HomeStack() {
         name="StudyPlanner"
         component={StudyPlannerScreen}
         options={{headerShown: false}}
+      />
+      <Stack.Screen
+        name="QuizSession"
+        component={QuizSessionScreen}
+        options={{headerShown: false}}
+      />
+      <Stack.Screen
+        name="ReviewSession"
+        component={ReviewSessionScreen}
+        options={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          gestureEnabled: true,
+        }}
       />
       <Stack.Screen
         name="ProfileHome"

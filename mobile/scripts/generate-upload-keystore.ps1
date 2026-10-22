@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 $androidDir = (Resolve-Path (Join-Path $PSScriptRoot "..\android")).Path
 $keystorePath = Join-Path $androidDir "app\upload-keystore.jks"
 $propsPath = Join-Path $androidDir "keystore.properties"
-$keyAlias = "flipwise-upload"
+$keyAlias = "cardweave-upload"
 
 if (Test-Path $keystorePath) {
     Write-Error "Keystore already exists at $keystorePath - aborting to avoid overwrite."
@@ -48,7 +48,7 @@ Write-Host "Generating upload keystore..."
     -validity 10000 `
     -storepass $storePassword `
     -keypass $keyPassword `
-    -dname "CN=Flipwise, OU=Mobile, O=Flipwise, L=Unknown, ST=Unknown, C=US"
+    -dname "CN=Cardweave, OU=Mobile, O=Cardweave, L=Unknown, ST=Unknown, C=US"
 
 $props = @"
 storeFile=app/upload-keystore.jks

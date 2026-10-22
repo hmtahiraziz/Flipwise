@@ -1,6 +1,12 @@
-import {ActivityIndicator, Pressable, Text, View} from 'react-native';
-import {createDeckTokens} from '../../config/createDeckTokens';
-import {fonts} from '../../config/theme';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 
 type DeckFormFooterProps = {
@@ -8,77 +14,120 @@ type DeckFormFooterProps = {
   saving?: boolean;
   disabled?: boolean;
   onPress: () => void;
-  variant?: 'default' | 'create';
+  onCancel?: () => void;
+  showSaveIcon?: boolean;
 };
 
-const BUTTON_HEIGHT = 56;
-
+/** Flat Cancel + Save — same pattern as EditCardFooter (no border/shadow). */
 export function DeckFormFooter({
   label,
   saving = false,
   disabled = false,
   onPress,
-  variant = 'default',
+  onCancel,
+  showSaveIcon = true,
 }: DeckFormFooterProps) {
   const busy = saving || disabled;
-  const isCreate = variant === 'create';
 
   return (
-    <View
-      style={{
-        paddingHorizontal: libraryTokens.containerPadding,
-        paddingTop: 16,
-        paddingBottom: 8,
-        backgroundColor: isCreate ? createDeckTokens.footerBackground : libraryTokens.background,
-        borderTopWidth: 1,
-        borderTopColor: libraryTokens.borderSubtle,
-      }}>
-      <Pressable
-        onPress={onPress}
-        disabled={busy}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        className="active:scale-[0.98]"
-        style={{
-          height: BUTTON_HEIGHT,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 8,
-          borderRadius: 999,
-          backgroundColor: libraryTokens.primaryContainer,
-          opacity: busy ? 0.75 : 1,
-          maxWidth: libraryTokens.contentMaxWidth,
-          width: '100%',
-          alignSelf: 'center',
-          ...(isCreate
-            ? {
-                shadowColor: '#000000',
-                shadowOffset: {width: 0, height: 4},
-                shadowOpacity: 0.12,
-                shadowRadius: 8,
-                elevation: 4,
-              }
-            : {}),
-        }}>
-        {saving ? (
-          <ActivityIndicator
-            size="small"
-            color={isCreate ? createDeckTokens.buttonText : libraryTokens.onPrimaryContainer}
-          />
+    <View style={styles.shell}>
+      <View style={styles.actions}>
+        {onCancel ? (
+          <Pressable
+            onPress={onCancel}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+            style={[styles.cancelBtn, busy ? styles.btnDisabled : null]}>
+            <Text style={styles.cancelLabel}>Cancel</Text>
+          </Pressable>
         ) : null}
-        <Text
-          style={{
-            fontFamily: fonts.bodySemiBold,
-            fontSize: 16,
-            fontWeight: isCreate ? '700' : '600',
-            color: isCreate ? createDeckTokens.buttonText : libraryTokens.onPrimaryContainer,
-          }}>
-          {label}
-        </Text>
-      </Pressable>
+
+        <Pressable
+          onPress={onPress}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          style={[styles.saveBtn, busy ? styles.btnDisabled : null]}>
+          <View style={styles.saveInner}>
+            {saving ? (
+              <ActivityIndicator size="small" color={brandColors.charcoal} />
+            ) : showSaveIcon ? (
+              <MaterialIcons
+                name="check"
+                size={18}
+                color={brandColors.charcoal}
+              />
+            ) : null}
+            <Text
+              style={[
+                styles.saveLabel,
+                !showSaveIcon && !saving ? styles.saveLabelSolo : null,
+              ]}
+              numberOfLines={1}>
+              {label}
+            </Text>
+          </View>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
-export const DECK_FORM_FOOTER_HEIGHT = BUTTON_HEIGHT + 16 + 8 + 1;
+export const DECK_FORM_FOOTER_HEIGHT = 52 + 12 + 10;
+
+const styles = StyleSheet.create({
+  shell: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 10,
+    backgroundColor: brandColors.surface,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    maxWidth: libraryTokens.contentMaxWidthWide,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  cancelBtn: {
+    width: 108,
+    height: 52,
+    borderRadius: 999,
+    backgroundColor: libraryTokens.surfaceContainerLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  cancelLabel: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 14,
+    color: brandColors.charcoal,
+  },
+  saveBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 999,
+    backgroundColor: brandColors.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  saveInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveLabel: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 14,
+    color: brandColors.charcoal,
+    marginLeft: 8,
+  },
+  saveLabelSolo: {
+    marginLeft: 0,
+  },
+  btnDisabled: {
+    opacity: 0.55,
+  },
+});

@@ -5,10 +5,18 @@ import {legalDocuments, type LegalDocumentKey} from '../../config/legal';
 import {ProfileScreenHeader} from '../../components/profile/ProfileScreenHeader';
 import {fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
-import type {ProfileRoutesParamList} from '../../navigation/types';
+import {useProfileStackBack} from '../../hooks/useProfileStackBack';
+import type {
+  AuthStackParamList,
+  ProfileRoutesParamList,
+} from '../../navigation/types';
+
+/** Auth + profile stacks both host Privacy / Terms. */
+type LegalParamList = ProfileRoutesParamList &
+  Pick<AuthStackParamList, 'PrivacyPolicy' | 'TermsOfService'>;
 
 type Props = NativeStackScreenProps<
-  ProfileRoutesParamList,
+  LegalParamList,
   'PrivacyPolicy' | 'TermsOfService' | 'DataHandling'
 >;
 
@@ -18,13 +26,14 @@ type LegalDocumentScreenProps = Props & {
 
 function LegalDocumentContent({documentKey, navigation}: LegalDocumentScreenProps) {
   const insets = useSafeAreaInsets();
+  const onBack = useProfileStackBack(navigation);
   const doc = legalDocuments[documentKey];
 
   return (
     <View className="flex-1" style={{backgroundColor: libraryTokens.background}}>
       <ProfileScreenHeader
         title={doc.title}
-        onBack={() => navigation.goBack()}
+        onBack={onBack}
       />
 
       <ScrollView
@@ -93,19 +102,19 @@ function LegalDocumentContent({documentKey, navigation}: LegalDocumentScreenProp
 }
 
 export function PrivacyPolicyScreen(
-  props: NativeStackScreenProps<ProfileRoutesParamList, 'PrivacyPolicy'>,
+  props: NativeStackScreenProps<LegalParamList, 'PrivacyPolicy'>,
 ) {
   return <LegalDocumentContent {...props} documentKey="privacy" />;
 }
 
 export function TermsOfServiceScreen(
-  props: NativeStackScreenProps<ProfileRoutesParamList, 'TermsOfService'>,
+  props: NativeStackScreenProps<LegalParamList, 'TermsOfService'>,
 ) {
   return <LegalDocumentContent {...props} documentKey="terms" />;
 }
 
 export function DataHandlingScreen(
-  props: NativeStackScreenProps<ProfileRoutesParamList, 'DataHandling'>,
+  props: NativeStackScreenProps<LegalParamList, 'DataHandling'>,
 ) {
   return <LegalDocumentContent {...props} documentKey="data" />;
 }

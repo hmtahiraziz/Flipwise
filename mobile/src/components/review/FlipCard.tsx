@@ -21,17 +21,7 @@ type FlipCardProps = {
   reducedMotion?: boolean;
   explainLoading?: boolean;
   onExplainAi?: () => void;
-  onReport?: () => void;
 };
-
-function keyTakeaway(answer: string): string {
-  const cleaned = answer.replace(/\s+/g, ' ').trim();
-  if (cleaned.length <= 140) return cleaned;
-  const cut = cleaned.slice(0, 140);
-  const lastStop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('; '));
-  if (lastStop > 60) return cut.slice(0, lastStop + 1);
-  return `${cut.trim()}…`;
-}
 
 export function FlipCard({
   question,
@@ -42,7 +32,6 @@ export function FlipCard({
   cardType = 'Concept Check',
   explainLoading = false,
   onExplainAi,
-  onReport,
 }: FlipCardProps) {
   const {height} = useWindowDimensions();
   const minHeight = Math.min(420, Math.max(320, height * 0.42));
@@ -169,93 +158,53 @@ export function FlipCard({
               </ScrollView>
             </View>
 
-            <View
-              className="flex-row items-start"
-              style={{
-                backgroundColor: reviewTokens.takeawayBg,
-                borderWidth: 1,
-                borderColor: reviewTokens.takeawayBorder,
-                borderRadius: 16,
-                padding: 14,
-                gap: 10,
-              }}>
-              <Text style={{fontSize: 16}}>💡</Text>
-              <Text
+            {onExplainAi ? (
+              <View
+                className="flex-row items-center justify-between"
                 style={{
-                  flex: 1,
-                  fontFamily: fonts.bodyMedium,
-                  fontSize: 12,
-                  lineHeight: 18,
-                  color: reviewTokens.takeawayText,
+                  marginTop: 4,
+                  paddingTop: 14,
+                  borderTopWidth: 1,
+                  borderTopColor: '#F0F2EB',
                 }}>
-                <Text style={{fontFamily: fonts.bodyBold}}>Key takeaway: </Text>
-                {keyTakeaway(answer)}
-              </Text>
-            </View>
-
-            <View
-              className="flex-row items-center justify-between"
-              style={{
-                marginTop: 4,
-                paddingTop: 14,
-                borderTopWidth: 1,
-                borderTopColor: '#F0F2EB',
-              }}>
-              <Pressable
-                onPress={e => {
-                  e.stopPropagation?.();
-                  if (!explainLoading) onExplainAi?.();
-                }}
-                disabled={explainLoading}
-                accessibilityRole="button"
-                accessibilityState={{busy: explainLoading}}
-                className={`flex-row items-center active:opacity-80 ${
-                  explainLoading ? 'opacity-70' : ''
-                }`}
-                style={{
-                  backgroundColor: brandColors.paleLime,
-                  borderRadius: 999,
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  gap: 6,
-                }}>
-                {explainLoading ? (
-                  <ActivityIndicator size="small" color={brandColors.olive} />
-                ) : (
-                  <MaterialIcons
-                    name="auto-awesome"
-                    size={14}
-                    color={brandColors.olive}
-                  />
-                )}
-                <Text
+                <Pressable
+                  onPress={e => {
+                    e.stopPropagation?.();
+                    if (!explainLoading) onExplainAi();
+                  }}
+                  disabled={explainLoading}
+                  accessibilityRole="button"
+                  accessibilityState={{busy: explainLoading}}
+                  className={`flex-row items-center active:opacity-80 ${
+                    explainLoading ? 'opacity-70' : ''
+                  }`}
                   style={{
-                    fontFamily: fonts.bodyBold,
-                    fontSize: 12,
-                    color: brandColors.olive,
+                    backgroundColor: brandColors.paleLime,
+                    borderRadius: 999,
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                    gap: 6,
                   }}>
-                  {explainLoading ? 'Explaining…' : 'Explain with AI'}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={e => {
-                  e.stopPropagation?.();
-                  onReport?.();
-                }}
-                accessibilityRole="button"
-                className="flex-row items-center active:opacity-70"
-                style={{gap: 4}}>
-                <MaterialIcons name="flag" size={14} color={reviewTokens.muted} />
-                <Text
-                  style={{
-                    fontFamily: fonts.bodySemiBold,
-                    fontSize: 12,
-                    color: reviewTokens.muted,
-                  }}>
-                  Report issue
-                </Text>
-              </Pressable>
-            </View>
+                  {explainLoading ? (
+                    <ActivityIndicator size="small" color={brandColors.olive} />
+                  ) : (
+                    <MaterialIcons
+                      name="auto-awesome"
+                      size={14}
+                      color={brandColors.olive}
+                    />
+                  )}
+                  <Text
+                    style={{
+                      fontFamily: fonts.bodyBold,
+                      fontSize: 12,
+                      color: brandColors.olive,
+                    }}>
+                    {explainLoading ? 'Explaining…' : 'Explain with AI'}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
         )}
       </View>

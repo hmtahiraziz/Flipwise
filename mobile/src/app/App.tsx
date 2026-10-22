@@ -12,7 +12,7 @@ const releaseConfig = validateReleaseConfig();
 export default function App() {
   useEffect(() => {
     for (const warning of releaseConfig.warnings) {
-      console.warn(`[Flipwise] ${warning}`);
+      console.warn(`[Cardweave] ${warning}`);
     }
   }, []);
 

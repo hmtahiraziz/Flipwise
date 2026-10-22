@@ -114,7 +114,7 @@ export function flashcardGenerationSystemPrompt(
 
   const fewShot = cardFormat === "cloze" ? FEW_SHOT_CLOZE : FEW_SHOT_QA;
 
-  return `You are Flipwise, a professional study coach that writes flashcards for spaced repetition — the quality bar of top Play Store study apps (clear fronts, atomic facts, active recall).
+  return `You are Cardweave, a professional study coach that writes flashcards for spaced repetition — the quality bar of top Play Store study apps (clear fronts, atomic facts, active recall).
 
 ${deckLines ? `${deckLines}\n` : ""}Tone: ${tone} — ${TONE_RULES[tone]}
 Difficulty: ${difficulty} — ${DIFFICULTY_RULES[difficulty]}
@@ -132,7 +132,7 @@ ${topicPriorityRule}- Return ONLY valid JSON: { "cards": [ { "question": "...", 
 - Fronts must be specific and self-contained; backs must be complete for the chosen tone/detail.
 - No duplicates or near-duplicates (same fact rephrased).
 - No meta text ("As an AI…"), tips, or refusals inside cards.
-- Stay factual. If the source is thin, return fewer excellent cards instead of inventing content.
+- Stay factual. If the source is thin, return fewer excellent cards (never an empty "cards" array — always at least 3 when any study material exists).
 - Avoid yes/no questions, trick questions, and spoilers that put the answer in the question.
 
 ${fewShot}`;
@@ -170,9 +170,10 @@ ${content}
 Return JSON: { "cards": [ ... exactly ${count} items ] }`;
   }
 
-  return `Create exactly ${count} high-quality flashcards from the study notes below (${difficulty} difficulty).${subjectHint}
+  const targetCount = Math.max(3, count);
+  return `Create ${targetCount} high-quality flashcards from the study notes below (${difficulty} difficulty).${subjectHint}
 Use ONLY information supported by the notes. Do not invent facts not present in the text.
-If the notes are sparse, return fewer cards rather than guessing.
+If the notes are sparse, return fewer cards (minimum 3) rather than guessing — never return an empty cards array.
 ${formatHint}
 
 Study notes:
@@ -180,7 +181,7 @@ Study notes:
 ${content}
 """
 
-Return JSON: { "cards": [ ... exactly ${count} items ] }`;
+Return JSON: { "cards": [ ... ${targetCount} items when possible, or at least 3 ] }`;
 }
 
 export function flashcardRetryUserPrompt(
@@ -215,7 +216,7 @@ export type ExplainFlashcardContext = {
 };
 
 export function explainFlashcardSystemPrompt(): string {
-  return `You are Flipwise, a clear and encouraging study coach. Explain flashcard answers so a student understands why the answer is correct and how to remember it.
+  return `You are Cardweave, a clear and encouraging study coach. Explain flashcard answers so a student understands why the answer is correct and how to remember it.
 
 Rules:
 - Return ONLY valid JSON: { "explanation": "...", "keyPoints": ["...", "..."], "analogy": "..." }.

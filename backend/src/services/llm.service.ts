@@ -56,7 +56,32 @@ function getOpenAI(): OpenAI {
   return openaiClient;
 }
 
-function extractJsonArray(raw: string): unknown {
+/** OpenAI auth / missing-key failures — do not retry; surface a clear 503. */
+function throwIfOpenAiConfigError(error: unknown): void {
+  if (!error || typeof error !== "object") return;
+  const status =
+    "status" in error && typeof (error as { status: unknown }).status === "number"
+      ? (error as { status: number }).status
+      : undefined;
+  const message =
+    "message" in error && typeof (error as { message: unknown }).message === "string"
+      ? (error as { message: string }).message.toLowerCase()
+      : "";
+  if (
+    status === 401 ||
+    status === 403 ||
+    message.includes("incorrect api key") ||
+    message.includes("invalid api key") ||
+    (message.includes("api key") && message.includes("invalid"))
+  ) {
+    throw new AppError(
+      503,
+      "AI is unavailable (OpenAI API key missing or invalid). Try again later.",
+    );
+  }
+}
+
+function extractJsonPayload(raw: string): unknown {
   const trimmed = raw.trim();
   const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fenceMatch?.[1]?.trim() ?? trimmed;
@@ -64,6 +89,15 @@ function extractJsonArray(raw: string): unknown {
   try {
     return JSON.parse(candidate);
   } catch {
+    const objStart = candidate.indexOf("{");
+    const objEnd = candidate.lastIndexOf("}");
+    if (objStart >= 0 && objEnd > objStart) {
+      try {
+        return JSON.parse(candidate.slice(objStart, objEnd + 1));
+      } catch {
+        // fall through to array extract
+      }
+    }
     const start = candidate.indexOf("[");
     const end = candidate.lastIndexOf("]");
     if (start >= 0 && end > start) {
@@ -73,12 +107,52 @@ function extractJsonArray(raw: string): unknown {
   }
 }
 
-function parseCardsFromMessage(message: string): GeneratedCard[] {
-  const parsed = extractJsonArray(message);
-  const payload =
-    Array.isArray(parsed) ? parsed : (parsed as { cards?: unknown }).cards;
+function coerceCard(raw: unknown): GeneratedCard | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as Record<string, unknown>;
+  const question = String(
+    row.question ?? row.front ?? row.q ?? row.prompt ?? "",
+  ).trim();
+  const answer = String(
+    row.answer ?? row.back ?? row.a ?? row.response ?? "",
+  ).trim();
+  if (!question || !answer) return null;
+  return { question, answer };
+}
 
-  return generatedCardsSchema.parse(payload);
+function parseCardsFromMessage(message: string): GeneratedCard[] {
+  const parsed = extractJsonPayload(message);
+  const record =
+    parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  const payload = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(record?.cards)
+      ? record.cards
+      : Array.isArray(record?.flashcards)
+        ? record.flashcards
+        : Array.isArray(record?.items)
+          ? record.items
+          : null;
+
+  if (!Array.isArray(payload) || payload.length === 0) {
+    throw new AppError(502, "AI returned no cards. Please try again.");
+  }
+
+  const cards = payload
+    .map(coerceCard)
+    .filter((card): card is GeneratedCard => card !== null);
+
+  if (cards.length === 0) {
+    throw new AppError(502, "AI returned invalid cards. Please try again.");
+  }
+
+  try {
+    return generatedCardsSchema.parse(cards);
+  } catch {
+    throw new AppError(502, "AI returned invalid cards. Please try again.");
+  }
 }
 
 function normalizeGeneratedCard(
@@ -133,6 +207,7 @@ Return JSON: { "cards": [ ... ] }`;
   const completion = await openai.chat.completions.create({
     model: env.OPENAI_MODEL,
     temperature: retryIssues?.length ? 0.25 : 0.45,
+    max_tokens: env.OPENAI_MAX_TOKENS_GENERATE,
     response_format: { type: "json_object" },
     messages: [
       {
@@ -286,6 +361,7 @@ export async function explainFlashcard(
       const completion = await openai.chat.completions.create({
         model: env.OPENAI_MODEL,
         temperature: 0.4,
+        max_tokens: env.OPENAI_MAX_TOKENS_EXPLAIN,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: explainFlashcardSystemPrompt() },
@@ -316,9 +392,10 @@ export async function explainFlashcard(
       };
     } catch (error) {
       lastError = error;
-      if (error instanceof AppError && error.statusCode < 500) {
+      if (error instanceof AppError) {
         throw error;
       }
+      throwIfOpenAiConfigError(error);
       if (error instanceof z.ZodError) {
         lastError = error;
       }
@@ -330,6 +407,7 @@ export async function explainFlashcard(
   }
 
   console.error("Flashcard explain failed:", lastError);
+  throwIfOpenAiConfigError(lastError);
   throw new AppError(
     502,
     "Could not generate an explanation. Please try again in a moment.",

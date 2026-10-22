@@ -48,6 +48,56 @@ export function getApiErrorMessage(error: unknown, fallback = 'Something went wr
   return fallback;
 }
 
+/** Friendlier copy for scan / OCR failures (Android + iOS). */
+export function getOcrErrorMessage(error: unknown): string {
+  const raw = getApiErrorMessage(error, '');
+  const lower = raw.toLowerCase();
+
+  if (
+    lower.includes('could not be verified') ||
+    lower.includes('file type') ||
+    lower.includes('heic') ||
+    lower.includes('heif') ||
+    lower.includes('only jpeg')
+  ) {
+    return 'Use a JPEG or PNG photo. On some phones, retake the picture instead of picking HEIC.';
+  }
+  if (
+    lower.includes('image file is required') ||
+    lower.includes('could not process this photo') ||
+    lower.includes('could not process image')
+  ) {
+    return 'Could not upload that photo. Retake with the camera, then tap Run OCR.';
+  }
+  if (lower.includes('8 mb') || lower.includes('exceeds')) {
+    return 'Photo is too large. Try a clearer, closer shot under 8 MB.';
+  }
+  if (
+    lower.includes('could not read text') ||
+    lower.includes('empty') ||
+    lower.includes('no readable text') ||
+    lower.includes('scanned pdf')
+  ) {
+    return 'No readable text found. Retake with better lighting, use Camera scan, or paste notes.';
+  }
+  if (lower.includes('timed out') || lower.includes('timeout')) {
+    return 'OCR timed out. Crop closer to the notes and try again.';
+  }
+  if (lower.includes('ocr failed') || lower.includes('busy')) {
+    return 'OCR is busy. Wait a moment, then tap Run OCR again.';
+  }
+  if (
+    axios.isAxiosError(error) &&
+    error.response?.status === 429
+  ) {
+    return 'Daily scan limit reached. Try again tomorrow or paste text manually.';
+  }
+  if (!error || (axios.isAxiosError(error) && !error.response)) {
+    return 'Could not reach the server. Check Wi‑Fi/USB and try again.';
+  }
+  return raw || 'Scan failed. Retake the page or paste text below.';
+}
+
 export function getValidationErrors(error: unknown): Record<string, string> {
   if (!axios.isAxiosError(error)) {
     return {};
@@ -80,6 +130,56 @@ export type GenerateErrorCopy = {
   message: string;
   cancelled?: boolean;
 };
+
+/** User-facing copy for Explain with AI failures (offline, quota, missing API key). */
+export function getExplainErrorMessage(error: unknown): string {
+  if (isNetworkError(error)) {
+    return 'You appear to be offline. Check your connection and try again.';
+  }
+
+  if (!axios.isAxiosError(error)) {
+    return error instanceof Error
+      ? error.message
+      : 'Could not generate an explanation. Please try again.';
+  }
+
+  const status = error.response?.status;
+  const apiMessage = getApiErrorMessage(
+    error,
+    'Could not generate an explanation. Please try again.',
+  );
+  const lower = apiMessage.toLowerCase();
+
+  if (status === 429) {
+    return (
+      apiMessage ||
+      'Daily explain limit reached. Try again tomorrow.'
+    );
+  }
+
+  if (
+    status === 503 ||
+    lower.includes('api key') ||
+    lower.includes('not configured') ||
+    lower.includes('authentication') ||
+    lower.includes('unauthorized')
+  ) {
+    return 'AI is unavailable right now. The server may need an OpenAI API key. Try again later.';
+  }
+
+  if (status === 502) {
+    return (
+      apiMessage ||
+      'AI could not generate an explanation. Please try again.'
+    );
+  }
+
+  if (!error.response) {
+    return 'You appear to be offline. Check your connection and try again.';
+  }
+
+  return apiMessage;
+}
 
 /** User-facing copy for AI generate failures (rate limits, AI busy, network, cancel). */
 export function getGenerateErrorMessage(

@@ -42,4 +42,4 @@ export function LibraryTopBar({title, left, right}: LibraryTopBarProps) {
   );
 }
 
-export {LibraryProfileButton, LibrarySettingsButton, LibraryBackButton} from './LibraryHeader';
+export {LibraryBackButton} from './LibraryHeader';

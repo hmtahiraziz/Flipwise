@@ -41,7 +41,7 @@ export function AuthAppBar({onBack, showBack = true}: AuthAppBarProps) {
             letterSpacing: -0.24,
             color: authTheme.primary,
           }}>
-          Flipwise
+          Cardweave
         </Text>
       </View>
 

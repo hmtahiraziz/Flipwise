@@ -29,7 +29,7 @@ export function renderLegalHtml(doc: LegalDocument): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(doc.title)} · Flipwise</title>
+  <title>${escapeHtml(doc.title)} · Cardweave</title>
   <style>
     :root { color-scheme: light; }
     body {
@@ -72,7 +72,7 @@ export function renderLegalHtml(doc: LegalDocument): string {
 <body>
   <main>
     <header>
-      <a class="brand" href="/">Flipwise</a>
+      <a class="brand" href="/">Cardweave</a>
       <h1>${escapeHtml(doc.title)}</h1>
       <p class="meta">Last updated ${escapeHtml(doc.lastUpdated)}</p>
     </header>

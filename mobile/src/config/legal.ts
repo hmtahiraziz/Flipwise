@@ -18,7 +18,7 @@ export type LegalDocument = {
   sections: LegalSection[];
 };
 
-const LAST_UPDATED = 'July 30, 2026';
+const LAST_UPDATED = 'October 22, 2026';
 
 export const privacyPolicy: LegalDocument = {
   title: 'Privacy Policy',
@@ -28,10 +28,12 @@ export const privacyPolicy: LegalDocument = {
     {
       title: 'Information we collect',
       paragraphs: [
-        'Account information: When you create an account, we collect your email address, display name, and profile photo through our authentication provider, Clerk. If you sign in with Google, we receive basic profile information permitted by your Google account settings.',
-        'Study content: We store flashcards, decks, review history, spaced-repetition scheduling data, and progress statistics that you create or generate in the app.',
-        'Usage data: We collect technical information necessary to operate the service, such as device type, app version, and error logs when something fails.',
-        'AI-generated content: If you use AI card generation, the text you submit is sent to our backend and processed by a language-model provider solely to produce flashcards. We do not use your study content to train public AI models.',
+        'Account information: When you create an account, we collect your email address, display name, and profile photo (avatar URL) through our authentication provider, Clerk. If you sign in with Google, we receive basic profile information permitted by your Google account settings.',
+        'Study content: We store flashcards, decks, review history, spaced-repetition scheduling data, streaks, study-session stats, and optional content reports that you create or submit in the app.',
+        'Device inputs you choose to share: camera photos or gallery images for note scanning (OCR), PDF/document text you import, and optional webpage text fetched from a URL you provide. Images are processed in memory, re-encoded to strip metadata (including EXIF), and are not retained as files after processing.',
+        'Identifiers: Authentication and session identifiers required to keep you signed in (via Clerk). We do not collect advertising IDs.',
+        'AI-generated content: If you use AI features (card generation, OCR, or explanations), the text or image you submit is sent to our backend and processed by OpenAI solely to produce flashcards, extracted text, or explanations. We do not use your study content to train public AI models. You must consent in-app before content is sent.',
+        'We do not use a third-party crash-reporting or advertising analytics SDK in the app.',
       ],
     },
     {
@@ -39,9 +41,10 @@ export const privacyPolicy: LegalDocument = {
       paragraphs: [
         'Provide and maintain the app, including syncing your decks and review progress across sessions.',
         'Authenticate you and secure your account.',
-        'Improve reliability, fix bugs, and understand aggregate usage patterns.',
+        'Run AI generation, OCR, and explanation features you request.',
+        'Review user-submitted content reports for safety and quality.',
         'Respond to support requests and legal obligations.',
-        'We do not sell your personal information.',
+        'We do not sell your personal information. We do not serve third-party ads or collect advertising IDs. We do not operate a product analytics or crash-reporting pipeline in the app.',
       ],
     },
     {
@@ -49,15 +52,16 @@ export const privacyPolicy: LegalDocument = {
       paragraphs: [
         'Clerk — authentication and account management (https://clerk.com/privacy).',
         'Google — optional OAuth sign-in, subject to Google\'s Privacy Policy when you choose that sign-in method.',
-        'Cloud hosting and database providers — store encrypted data needed to run the service.',
-        'AI providers — process prompts you submit for card generation under our instructions and data-processing terms.',
+        'Neon (Postgres) — stores your account and study data for the service.',
+        'OpenAI — processes prompts, OCR images, and explanation requests under our instructions and data-processing terms (https://openai.com/policies/privacy-policy).',
+        'Cloud hosting for the Cardweave API — stores and serves encrypted data in transit (HTTPS/TLS).',
         'These providers process data only as needed to deliver the service on our behalf.',
       ],
     },
     {
       title: 'Data retention',
       paragraphs: [
-        'We retain your account and study data while your account is active. If you delete your account, we delete or anonymize associated personal data within a reasonable period, except where retention is required by law or for legitimate security purposes.',
+        'We retain your account and study data while your account is active. If you delete your account, we delete associated personal and study data from our primary database promptly (typically within minutes via in-app deletion or our Clerk user.deleted webhook). Backup copies may persist until rotated. Exceptions apply where retention is required by law or for legitimate security purposes.',
       ],
     },
     {
@@ -65,7 +69,7 @@ export const privacyPolicy: LegalDocument = {
       paragraphs: [
         'Access and update your profile information in Settings or through the Clerk account portal.',
         'Export your study data by contacting us at the email below.',
-        'Delete your account from Settings → Delete account, which opens the secure account management portal.',
+        'Delete your account from Settings → Delete account in the app, or use the public deletion page linked from our website. This permanently removes your profile and study data from our servers.',
         'Opt out of non-essential communications by contacting support.',
         'Depending on your region (EEA, UK, California, and others), you may have additional rights to access, correct, delete, or restrict processing of your personal data.',
       ],
@@ -120,7 +124,7 @@ export const termsOfService: LegalDocument = {
       paragraphs: [
         'You are responsible for maintaining the confidentiality of your login credentials and for all activity under your account.',
         'Provide accurate registration information and keep your profile up to date.',
-        'Notify us immediately at support@flipwise.app if you suspect unauthorized access.',
+        'Notify us immediately at support@cardweave.app if you suspect unauthorized access.',
       ],
     },
     {
@@ -141,8 +145,15 @@ export const termsOfService: LegalDocument = {
     {
       title: 'AI features',
       paragraphs: [
-        'AI-generated flashcards are provided for study assistance. Outputs may contain errors; always review cards before relying on them for exams or professional use.',
+        'AI-generated flashcards and explanations are provided for study assistance. Outputs may contain errors; always review cards before relying on them for exams or professional use.',
         'Do not submit sensitive personal data, credentials, or confidential third-party information to AI features.',
+        'You may report inaccurate, offensive, harmful, or infringing AI content from the review screen. We may remove or restrict content that violates these Terms.',
+      ],
+    },
+    {
+      title: 'Imported documents and copyright',
+      paragraphs: [
+        'You are responsible for ensuring you have the rights to import, scan, or paste any documents, images, or web content you submit. Do not upload copyrighted material unless you own it or have permission to use it for personal study.',
       ],
     },
     {
@@ -172,7 +183,7 @@ export const termsOfService: LegalDocument = {
     {
       title: 'Governing law',
       paragraphs: [
-        'These Terms are governed by the laws applicable in your place of residence unless mandatory local consumer protections require otherwise. Disputes should first be raised with support@flipwise.app.',
+        'These Terms are governed by the laws applicable in your place of residence unless mandatory local consumer protections require otherwise. Disputes should first be raised with support@cardweave.app.',
       ],
     },
     {
@@ -190,20 +201,22 @@ export const dataHandlingSummary: LegalDocument = {
     {
       title: 'Data collected',
       paragraphs: [
-        'Personal info: email, name, profile photo (via Clerk authentication).',
-        'App activity: decks, flashcards, review history, streaks, and progress metrics.',
-        'Optional: Google account identifier if you choose Google sign-in.',
-        'Diagnostics: crash and error logs to keep the app stable.',
+        'Personal info: email, name, profile photo/avatar (via Clerk authentication).',
+        'User IDs and device/session identifiers needed for sign-in (Clerk).',
+        'App activity: decks, flashcards, review history, streaks, and progress metrics (stored in Neon Postgres via our API).',
+        'Optional camera or photo-picker images for note scanning (OCR) and optional avatar upload.',
+        'Optional PDF/document text and URLs you import for study.',
+        'Optional: Google account profile basics if you choose Google sign-in.',
+        'We do not use a third-party crash or advertising analytics SDK.',
       ],
     },
     {
       title: 'Data shared',
       paragraphs: [
-        'Authentication data is processed by Clerk.',
-        'Optional Google sign-in data is processed by Google.',
-        'Study content is stored on our secure backend to sync your progress.',
-        'AI prompts are sent to our AI provider only when you use card generation.',
-        'We do not sell personal data to advertisers or data brokers.',
+        'Authentication data is processed by Clerk; Google receives profile data only if you use Google sign-in.',
+        'Study content is stored on Neon Postgres via our API host (we are the controller; Neon hosts the database).',
+        'AI prompts, OCR images, and explanation requests are sent to OpenAI only when you consent and use those features. Scan images are processed ephemerally (re-encoded, EXIF stripped) and not kept as photo files.',
+        'We do not sell personal data to advertisers or data brokers. We do not serve ads.',
       ],
     },
     {
@@ -217,15 +230,16 @@ export const dataHandlingSummary: LegalDocument = {
     {
       title: 'Data deletion',
       paragraphs: [
-        'Delete your account from Settings → Delete account to start permanent removal of your profile and associated study data.',
-        'You can also email privacy@flipwise.app for deletion or export requests.',
+        'Delete your account from Settings → Delete account to permanently remove your profile and study data from our servers.',
+        'You can also use the public deletion page or email privacy@cardweave.app for deletion or export requests.',
       ],
     },
     {
       title: 'Permissions',
       paragraphs: [
         'Internet — required to sync decks and authenticate.',
-        'Document access — when you import a study file, the system file picker grants one-time access to that file only.',
+        'Camera — optional; used only when you scan notes. We show a rationale before requesting access.',
+        'Photos — optional; modern Android uses the system photo picker without broad gallery permission. Document import uses the system file picker for one-time access.',
       ],
     },
     {

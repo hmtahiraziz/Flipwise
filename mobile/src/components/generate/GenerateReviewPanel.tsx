@@ -1,16 +1,18 @@
 import {useRef, useState, type ReactNode} from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   Text,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import {
+  KeyboardAwareScrollView,
+  type KeyboardAwareScrollViewRef,
+} from 'react-native-keyboard-controller';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {PreviewCardEditor} from '../card/PreviewCardEditor';
+import {keyboardScrollProps} from '../ui/KeyboardSafeView';
 import {ScrollToTopFab, SCROLL_TO_TOP_THRESHOLD} from '../ui/ScrollToTopFab';
 import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
@@ -67,7 +69,7 @@ export function GenerateReviewPanel({
   const validCount = preview.filter(
     c => c.question.trim() && c.answer.trim(),
   ).length;
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [allSelected, setAllSelected] = useState(true);
 
@@ -85,15 +87,14 @@ export function GenerateReviewPanel({
     <View className="flex-1" style={{backgroundColor: libraryTokens.background}}>
       <GenerateReviewHeader onBack={onBack} right={headerRight} />
 
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
-        <ScrollView
+      <View className="flex-1">
+        <KeyboardAwareScrollView
           ref={scrollRef}
           className="flex-1"
+          bottomOffset={24}
           onScroll={onScroll}
           scrollEventThrottle={16}
+          {...keyboardScrollProps}
           contentContainerStyle={{
             paddingHorizontal: 16,
             paddingTop: 8,
@@ -102,7 +103,6 @@ export function GenerateReviewPanel({
             width: '100%',
             alignSelf: 'center',
           }}
-          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <View style={{marginBottom: 16}}>
             <View className="flex-row items-center justify-between" style={{marginBottom: 4}}>
@@ -368,13 +368,14 @@ export function GenerateReviewPanel({
               </Text>
             </Pressable>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+      </View>
 
       <View
         className="absolute left-0 right-0"
         style={{bottom: bottomPad}}
         pointerEvents="box-none">
+
         <ScrollToTopFab
           visible={showScrollTop}
           onPress={scrollToTop}

@@ -1,8 +1,7 @@
-import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useQueryClient} from '@tanstack/react-query';
 import {useCallback, useMemo, useState} from 'react';
 import {
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -12,21 +11,18 @@ import {
   View,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {DeckCard} from '../../components/deck/DeckCard';
-import {
-  LibraryProfileButton,
-  LibrarySettingsButton,
-} from '../../components/library/LibraryHeader';
 import {LibraryStatsPills} from '../../components/library/LibraryStatsPills';
 import {LibraryTitleBlock} from '../../components/library/LibraryTitleBlock';
 import {PickDeckForAiSheet} from '../../components/library/PickDeckForAiSheet';
 import {SyllabusImportCard} from '../../components/library/SyllabusImportCard';
-import {ProfileAvatar} from '../../components/profile/ProfileAvatar';
+import {HeaderProfileButton} from '../../components/profile/HeaderProfileButton';
+import {appAlert} from '../../components/ui/AppAlert';
 import {Fab, FabSpacer} from '../../components/ui/Fab';
 import {SkeletonDeckList} from '../../components/ui/Skeleton';
 import {Button} from '../../components/ui/Button';
+import {FirstRunEmpty} from '../../components/ui/FirstRunEmpty';
 import {toast} from '../../components/ui/Toast';
 import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
@@ -35,17 +31,15 @@ import {
   navigateToGenerateCards,
 } from '../../lib/deckGenerateNavigation';
 import {getApiErrorMessage} from '../../lib/errors';
-import {useAppUser} from '../../hooks/useAppUser';
 import {useDeckMutations, useDecks} from '../../hooks/useDecks';
 import {useLibraryLayout, libraryContentStyle} from '../../hooks/useLibraryLayout';
-import {useProfileNavigation} from '../../hooks/useProfileNavigation';
 import {useProgressHistory, useProgressSummary} from '../../hooks/useProgress';
+import {reviewKeys} from '../../hooks/useReviews';
+import {fetchReviewQueue} from '../../services/api/reviewApi';
 import type {
   GenerateSourceType,
   LibraryStackParamList,
-  MainTabParamList,
 } from '../../navigation/types';
-import {localDataStorage} from '../../storage/localDataStorage';
 import type {Deck} from '../../types/api';
 
 type Props = NativeStackScreenProps<LibraryStackParamList, 'DeckList'>;
@@ -78,9 +72,7 @@ function deckMatchesQuery(deck: Deck, query: string): boolean {
 export function DeckListScreen({navigation}: Props) {
   const layout = useLibraryLayout(false);
   const insets = useSafeAreaInsets();
-  const tabNav = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
-  const {user} = useAppUser();
-  const {openProfile, openSettings} = useProfileNavigation();
+  const queryClient = useQueryClient();
   const {data: decks = [], isLoading, isRefetching, refetch, error} = useDecks();
   const {data: summary} = useProgressSummary();
   const {data: history = []} = useProgressHistory(7);
@@ -93,17 +85,8 @@ export function DeckListScreen({navigation}: Props) {
   const [filter, setFilter] = useState<FilterChip>('all');
   const [sortMode, setSortMode] = useState<SortMode>('recent');
   const [gridMode, setGridMode] = useState(false);
-  const [favoriteIds, setFavoriteIds] = useState<string[]>(() =>
-    localDataStorage.getFavoriteDeckIds(),
-  );
 
   const numColumns = gridMode ? 2 : 1;
-
-  useFocusEffect(
-    useCallback(() => {
-      setFavoriteIds(localDataStorage.getFavoriteDeckIds());
-    }, []),
-  );
 
   const openDeckPicker = useCallback((source: GenerateSourceType) => {
     setPickerSource(source);
@@ -156,8 +139,8 @@ export function DeckListScreen({navigation}: Props) {
     [decks],
   );
   const starredCount = useMemo(
-    () => decks.filter(d => favoriteIds.includes(d.id)).length,
-    [decks, favoriteIds],
+    () => decks.filter(d => d.isFavorite).length,
+    [decks],
   );
   const completedCount = useMemo(
     () => decks.filter(d => !d.isArchived && deckDue(d) === 0 && d.cardCount > 0).length,
@@ -188,7 +171,7 @@ export function DeckListScreen({navigation}: Props) {
     if (filter === 'active') {
       list = list.filter(d => deckDue(d) > 0);
     } else if (filter === 'starred') {
-      list = list.filter(d => favoriteIds.includes(d.id));
+      list = list.filter(d => d.isFavorite);
     } else if (filter === 'completed') {
       list = list.filter(d => deckDue(d) === 0 && d.cardCount > 0);
     } else if (filter.startsWith('subject:')) {
@@ -209,11 +192,10 @@ export function DeckListScreen({navigation}: Props) {
       });
     }
     return sorted;
-  }, [decks, searchQuery, filter, sortMode, favoriteIds]);
+  }, [decks, searchQuery, filter, sortMode]);
 
   const onRefresh = useCallback(() => {
     void refetch();
-    setFavoriteIds(localDataStorage.getFavoriteDeckIds());
   }, [refetch]);
 
   const cycleSort = useCallback(() => {
@@ -223,23 +205,32 @@ export function DeckListScreen({navigation}: Props) {
     });
   }, []);
 
-  const handleToggleFavorite = useCallback((deckId: string) => {
-    const next = localDataStorage.toggleFavoriteDeck(deckId);
-    setFavoriteIds(next);
-  }, []);
+  const handleToggleFavorite = useCallback(
+    (deck: Deck) => {
+      void updateDeck(deck.id, {isFavorite: !deck.isFavorite})
+        .then(() => {
+          toast.success(deck.isFavorite ? 'Removed from starred' : 'Starred');
+        })
+        .catch(err => {
+          toast.error('Could not update deck', getApiErrorMessage(err));
+        });
+    },
+    [updateDeck],
+  );
 
   const openDeckReview = useCallback(
     (deckId: string) => {
-      tabNav.navigate('Review', {
-        screen: 'ReviewSession',
-        params: {deckId},
+      void queryClient.prefetchQuery({
+        queryKey: reviewKeys.queue(deckId),
+        queryFn: () => fetchReviewQueue(deckId),
       });
+      navigation.navigate('ReviewSession', {deckId, forceFresh: true});
     },
-    [tabNav],
+    [navigation, queryClient],
   );
 
   const handleDelete = (deck: Deck) => {
-    Alert.alert(
+    appAlert(
       'Delete deck',
       `Delete "${deck.title}" and all its cards? This cannot be undone.`,
       [
@@ -260,7 +251,7 @@ export function DeckListScreen({navigation}: Props) {
   };
 
   const handleArchive = (deck: Deck) => {
-    Alert.alert(
+    appAlert(
       'Archive deck',
       `Archive "${deck.title}"? You can restore it later.`,
       [
@@ -300,18 +291,7 @@ export function DeckListScreen({navigation}: Props) {
           <View style={{flex: 1, paddingRight: 12}}>
             <LibraryTitleBlock />
           </View>
-          <View className="flex-row items-center" style={{gap: 8}}>
-            <LibrarySettingsButton onPress={openSettings} />
-            <LibraryProfileButton onPress={openProfile}>
-              <ProfileAvatar
-                name={user?.name}
-                email={user?.email}
-                imageUrl={user?.avatarUrl}
-                size={32}
-                variant="brand"
-              />
-            </LibraryProfileButton>
-          </View>
+          <HeaderProfileButton size={32} />
         </View>
 
         <View
@@ -517,11 +497,6 @@ export function DeckListScreen({navigation}: Props) {
     sortMode,
     gridMode,
     cycleSort,
-    openSettings,
-    openProfile,
-    user?.name,
-    user?.email,
-    user?.avatarUrl,
   ]);
 
   if (isLoading) {
@@ -536,18 +511,13 @@ export function DeckListScreen({navigation}: Props) {
     );
   }
 
-  const emptyMessage =
-    decks.length === 0
-      ? {
-          title: 'No decks yet',
-          body: 'Create your first deck or try AI Creator above.',
-        }
-      : {
-          title: 'No matching decks',
-          body: hasActiveQuery
-            ? 'Try a different search, filter, or sort.'
-            : 'No decks match this view.',
-        };
+  const isFirstRun = decks.length === 0;
+  const emptyMessage = {
+    title: 'No matching decks',
+    body: hasActiveQuery
+      ? 'Try a different search, filter, or sort.'
+      : 'No decks match this view.',
+  };
 
   return (
     <View
@@ -593,18 +563,26 @@ export function DeckListScreen({navigation}: Props) {
         }
         ListEmptyComponent={
           !error ? (
-            <View className="items-center py-8">
-              <Text
-                className="font-display mb-2"
-                style={{fontSize: 18, color: libraryTokens.ink}}>
-                {emptyMessage.title}
-              </Text>
-              <Text
-                className="text-center leading-6"
-                style={{fontSize: 16, color: libraryTokens.muted}}>
-                {emptyMessage.body}
-              </Text>
-            </View>
+            isFirstRun ? (
+              <FirstRunEmpty
+                icon="folder-open"
+                title="No decks yet"
+                body="Create a deck from Home, or tap + below to get started."
+              />
+            ) : (
+              <View className="items-center py-8">
+                <Text
+                  className="font-display mb-2"
+                  style={{fontSize: 18, color: libraryTokens.ink}}>
+                  {emptyMessage.title}
+                </Text>
+                <Text
+                  className="text-center leading-6"
+                  style={{fontSize: 16, color: libraryTokens.muted}}>
+                  {emptyMessage.body}
+                </Text>
+              </View>
+            )
           ) : null
         }
         ListFooterComponent={<FabSpacer extra={layout.fabBottomOffset} />}
@@ -613,8 +591,8 @@ export function DeckListScreen({navigation}: Props) {
             <DeckCard
               deck={item}
               compact={gridMode}
-              isFavorite={favoriteIds.includes(item.id)}
-              onToggleFavorite={() => handleToggleFavorite(item.id)}
+              isFavorite={!!item.isFavorite}
+              onToggleFavorite={() => handleToggleFavorite(item)}
               onPress={() => navigation.navigate('DeckDetail', {deckId: item.id})}
               onReview={() => openDeckReview(item.id)}
               onEdit={() => navigation.navigate('EditDeck', {deckId: item.id})}

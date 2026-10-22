@@ -13,6 +13,7 @@ import {useAuthLayout} from '../../components/auth/authLayout';
 import {authTheme} from '../../components/auth/authTheme';
 import {toast} from '../../components/ui/Toast';
 import {fonts} from '../../config/theme';
+import {useEmailCodeTimers} from '../../hooks/useEmailCodeTimers';
 import {getApiErrorMessage} from '../../lib/errors';
 import {
   forgotPasswordEmailSchema,
@@ -35,6 +36,14 @@ export function ForgotPasswordScreen({navigation, route}: Props) {
   const [resending, setResending] = useState(false);
   const {signIn, setActive, isLoaded} = useSignIn();
   const autoSentRef = useRef(false);
+  const {
+    armAfterSend,
+    canResend,
+    resendLabel,
+    expiryLabel,
+    isExpired,
+    isExpiringSoon,
+  } = useEmailCodeTimers({codeExpirySec: 5 * 60});
 
   const emailForm = useForm<ForgotPasswordEmailValues>({
     resolver: zodResolver(forgotPasswordEmailSchema),
@@ -60,6 +69,8 @@ export function ForgotPasswordScreen({navigation, route}: Props) {
         });
         setEmail(targetEmail.trim().toLowerCase());
         setStep('reset');
+        resetForm.reset({code: '', password: '', confirmPassword: ''});
+        armAfterSend();
         toast.info('Code sent', 'Check your email for a password reset code.');
         return true;
       } catch (error) {
@@ -69,7 +80,7 @@ export function ForgotPasswordScreen({navigation, route}: Props) {
         setSendingCode(false);
       }
     },
-    [isLoaded, signIn],
+    [armAfterSend, isLoaded, resetForm, signIn],
   );
 
   const onRequestCode = emailForm.handleSubmit(async values => {
@@ -77,7 +88,7 @@ export function ForgotPasswordScreen({navigation, route}: Props) {
   });
 
   const onResendCode = useCallback(async () => {
-    if (!email) {
+    if (!email || !canResend) {
       return;
     }
     setResending(true);
@@ -86,10 +97,15 @@ export function ForgotPasswordScreen({navigation, route}: Props) {
     } finally {
       setResending(false);
     }
-  }, [email, sendResetCode]);
+  }, [canResend, email, sendResetCode]);
 
   const onResetPassword = resetForm.handleSubmit(async values => {
     if (!isLoaded || !signIn) {
+      return;
+    }
+
+    if (isExpired) {
+      toast.error('Code expired', 'Request a new reset code and try again.');
       return;
     }
 
@@ -161,6 +177,24 @@ export function ForgotPasswordScreen({navigation, route}: Props) {
           </>
         ) : (
           <>
+            {expiryLabel ? (
+              <Text
+                style={{
+                  fontFamily: fonts.bodySemiBold,
+                  fontSize: 13,
+                  lineHeight: 18,
+                  color: isExpired
+                    ? authTheme.error
+                    : isExpiringSoon
+                      ? authTheme.error
+                      : authTheme.muted,
+                  marginBottom: 12,
+                  textAlign: 'center',
+                }}>
+                {expiryLabel}
+              </Text>
+            ) : null}
+
             <Controller
               control={resetForm.control}
               name="code"
@@ -176,6 +210,7 @@ export function ForgotPasswordScreen({navigation, route}: Props) {
                   onBlur={onBlur}
                   onChangeText={onChange}
                   maxLength={6}
+                  editable={!isExpired}
                   error={resetForm.formState.errors.code?.message}
                 />
               )}
@@ -193,6 +228,7 @@ export function ForgotPasswordScreen({navigation, route}: Props) {
                   value={value}
                   onBlur={onBlur}
                   onChangeText={onChange}
+                  editable={!isExpired}
                   error={resetForm.formState.errors.password?.message}
                 />
               )}
@@ -210,6 +246,7 @@ export function ForgotPasswordScreen({navigation, route}: Props) {
                   value={value}
                   onBlur={onBlur}
                   onChangeText={onChange}
+                  editable={!isExpired}
                   error={resetForm.formState.errors.confirmPassword?.message}
                 />
               )}
@@ -218,19 +255,20 @@ export function ForgotPasswordScreen({navigation, route}: Props) {
               label="Update password"
               icon="check"
               loading={resetForm.formState.isSubmitting}
+              disabled={isExpired}
               onPress={onResetPassword}
             />
             <Pressable
-              disabled={resending}
+              disabled={resending || !canResend}
               onPress={() => void onResendCode()}
-              style={{marginTop: 12, alignItems: 'center', paddingVertical: 8}}>
+              style={{marginTop: 12, alignItems: 'center', paddingVertical: 8, opacity: canResend ? 1 : 0.55}}>
               <Text
                 style={{
                   fontFamily: fonts.bodySemiBold,
                   fontSize: layout.bodySize,
-                  color: authTheme.muted,
+                  color: canResend ? authTheme.primary : authTheme.muted,
                 }}>
-                {resending ? 'Sending…' : 'Resend code'}
+                {resending ? 'Sending…' : resendLabel}
               </Text>
             </Pressable>
           </>

@@ -3,10 +3,11 @@ export type OnboardingStackParamList = {
 };
 
 export type AuthStackParamList = {
-  AuthWelcome: undefined;
   EmailAuth: {mode?: 'signIn' | 'signUp'};
   EmailVerification: {email: string; flow: 'signIn' | 'signUp'};
   ForgotPassword: {email?: string};
+  PrivacyPolicy: undefined;
+  TermsOfService: undefined;
 };
 
 export type GenerateSourceType = 'topic' | 'notes' | 'pdf' | 'scan';
@@ -21,9 +22,18 @@ export type ProfileRoutesParamList = {
   DataHandling: undefined;
 };
 
+/** Shared review-session params (Library / Home / Review stacks). */
+export type ReviewSessionParams = {
+  deckId?: string;
+  /** Skip resume prompt — start a fresh session (deck Study CTA). */
+  forceFresh?: boolean;
+};
+
 export type HomeStackParamList = {
   HomeHome: undefined;
   StudyPlanner: undefined;
+  QuizSession: {deckId: string};
+  ReviewSession: ReviewSessionParams;
   ProfileHome: undefined;
   Settings: undefined;
   EditProfile: undefined;
@@ -45,6 +55,7 @@ export type LibraryStackParamList = {
   GenerateCards: {deckId: string; initialSource?: GenerateSourceType};
   EditCard: {deckId: string; cardId?: string};
   EditDeck: {deckId: string};
+  ReviewSession: ReviewSessionParams;
   ProfileHome: undefined;
   Settings: undefined;
   EditProfile: undefined;
@@ -55,13 +66,23 @@ export type LibraryStackParamList = {
 
 export type ReviewStackParamList = {
   ReviewHome: undefined;
-  ReviewSession: {deckId?: string};
+  ReviewSession: ReviewSessionParams;
+  ProfileHome: undefined;
+  Settings: undefined;
+  EditProfile: undefined;
+  PrivacyPolicy: undefined;
+  TermsOfService: undefined;
+  DataHandling: undefined;
 };
 
 export type ProgressStackParamList = {
   ProgressHome: undefined;
-  StudyPlanner: undefined;
-  QuizSession: {deckId: string};
+  ProfileHome: undefined;
+  Settings: undefined;
+  EditProfile: undefined;
+  PrivacyPolicy: undefined;
+  TermsOfService: undefined;
+  DataHandling: undefined;
 };
 
 export type MainTabParamList = {
@@ -72,9 +93,7 @@ export type MainTabParamList = {
 };
 
 /** @deprecated Use LibraryStackParamList — kept for migration */
-export type MainStackParamList = LibraryStackParamList & {
-  ReviewSession: {deckId?: string};
-};
+export type MainStackParamList = LibraryStackParamList;
 
 declare global {
   namespace ReactNavigation {

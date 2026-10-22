@@ -2,7 +2,7 @@ import {createMMKV} from 'react-native-mmkv';
 
 type StorageValue = boolean | string | number;
 
-/** Minimal surface used by Flipwise storage modules. */
+/** Minimal surface used by Cardweave storage modules. */
 export type SafeMMKV = {
   getBoolean: (key: string) => boolean | undefined;
   getString: (key: string) => string | undefined;

@@ -115,7 +115,7 @@ export function ReviewSessionHeader({
                 onPress={onToggleBookmark}
                 hitSlop={6}
                 accessibilityRole="button"
-                accessibilityLabel={bookmarked ? 'Remove bookmark' : 'Bookmark card'}
+                accessibilityLabel={bookmarked ? 'Unstar card' : 'Star card'}
                 className="active:opacity-80"
                 style={{
                   width: 36,
@@ -126,9 +126,9 @@ export function ReviewSessionHeader({
                   backgroundColor: bookmarked ? brandColors.paleLime : 'transparent',
                 }}>
                 <MaterialIcons
-                  name={bookmarked ? 'bookmark' : 'bookmark-border'}
+                  name={bookmarked ? 'star' : 'star-border'}
                   size={18}
-                  color={bookmarked ? brandColors.olive : brandColors.charcoal}
+                  color={bookmarked ? '#E8A317' : brandColors.charcoal}
                 />
               </Pressable>
             ) : null}

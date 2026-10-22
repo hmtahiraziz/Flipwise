@@ -25,7 +25,7 @@ export function AiCreatorBanner({onPress}: AiCreatorBannerProps) {
           </Text>
           <Text
             className={`text-body text-muted leading-6 ${isWide ? '' : 'text-center'}`}>
-            Upload a document and Flipwise AI will create 50 cards automatically.
+            Upload a document and Cardweave AI will create 50 cards automatically.
           </Text>
         </View>
 

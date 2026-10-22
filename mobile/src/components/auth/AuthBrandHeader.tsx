@@ -1,5 +1,5 @@
 import {Text, View} from 'react-native';
-import {FlipwiseLogo} from '../brand/FlipwiseLogo';
+import {CardweaveLogo} from '../brand/CardweaveLogo';
 import {fonts} from '../../config/theme';
 import {useAuthLayout} from './authLayout';
 import {authTheme} from './authTheme';
@@ -27,7 +27,7 @@ export function AuthBrandHeader({
   return (
     <View style={{alignItems: 'center', marginBottom: layout.sectionGap, width: '100%'}}>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
-        <FlipwiseLogo
+        <CardweaveLogo
           size={layout.logoSize}
           frontColor={authTheme.primaryContainer}
           backColor={authTheme.onSurface}
@@ -40,7 +40,7 @@ export function AuthBrandHeader({
             letterSpacing: layout.titleSize * -0.02,
             color: authTheme.onSurface,
           }}>
-          Flipwise AI
+          Cardweave AI
         </Text>
       </View>
 
