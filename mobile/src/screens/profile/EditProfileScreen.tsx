@@ -2,26 +2,25 @@ import {useUser} from '@clerk/clerk-expo';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useCallback, useState} from 'react';
 import {
-  ActionSheetIOS,
   ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import {KeyboardAwareScrollView} from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {ProfileAvatar} from '../../components/profile/ProfileAvatar';
 import {ProfileScreenHeader} from '../../components/profile/ProfileScreenHeader';
+import {appAlert, showAppActionSheet} from '../../components/ui/AppAlert';
+import {keyboardScrollProps} from '../../components/ui/KeyboardSafeView';
 import {toast} from '../../components/ui/Toast';
 import {brandColors, colors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 import {useAppUser} from '../../hooks/useAppUser';
 import {useLibraryLayout} from '../../hooks/useLibraryLayout';
+import {useProfileStackBack} from '../../hooks/useProfileStackBack';
 import {getApiErrorMessage} from '../../lib/errors';
 import type {ProfileRoutesParamList} from '../../navigation/types';
 
@@ -30,54 +29,83 @@ type Props = NativeStackScreenProps<ProfileRoutesParamList, 'EditProfile'>;
 const INPUT_BG = '#F7F8F5';
 const AVATAR_SIZE = 112;
 
-async function uriToBlob(uri: string): Promise<Blob> {
-  const response = await fetch(uri);
-  if (!response.ok) {
-    throw new Error('Could not read selected image');
+type PickedAvatar = {
+  uri: string;
+  /** Clerk Expo requires a data URL on native — Blob/File uploads fail. */
+  dataUrl: string;
+};
+
+const avatarPickerOptions: ImagePicker.ImagePickerOptions = {
+  mediaTypes: ['images'],
+  allowsEditing: true,
+  aspect: [1, 1],
+  quality: 0.7,
+  base64: true,
+  exif: false,
+  preferredAssetRepresentationMode:
+    ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+};
+
+function assetToPickedAvatar(
+  asset: ImagePicker.ImagePickerAsset,
+): PickedAvatar | null {
+  if (!asset.uri || !asset.base64) {
+    toast.error(
+      'Could not read photo',
+      'Try another image, or retake with the camera.',
+    );
+    return null;
   }
-  return response.blob();
+
+  const mime = (asset.mimeType ?? 'image/jpeg').toLowerCase();
+  if (mime.includes('heic') || mime.includes('heif')) {
+    toast.error(
+      'Unsupported photo format',
+      'Use JPEG or PNG. Retake with the camera, or pick a different photo.',
+    );
+    return null;
+  }
+
+  const safeMime =
+    mime.startsWith('image/') && !mime.includes('heic')
+      ? mime === 'image/jpg'
+        ? 'image/jpeg'
+        : mime
+      : 'image/jpeg';
+
+  return {
+    uri: asset.uri,
+    dataUrl: `data:${safeMime};base64,${asset.base64}`,
+  };
 }
 
 async function pickAvatarImage(
   source: 'camera' | 'gallery',
-): Promise<{uri: string} | null> {
+): Promise<PickedAvatar | null> {
   if (source === 'camera') {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       toast.error('Permission needed', 'Allow camera access to take a photo.');
       return null;
     }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
-    });
-    if (result.canceled || !result.assets?.[0]?.uri) {
+    const result = await ImagePicker.launchCameraAsync(avatarPickerOptions);
+    if (result.canceled || !result.assets?.[0]) {
       return null;
     }
-    return {uri: result.assets[0].uri};
+    return assetToPickedAvatar(result.assets[0]);
   }
 
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) {
-    toast.error('Permission needed', 'Allow photo access to choose an avatar.');
+  // System photo picker — no READ_MEDIA_IMAGES / media-library permission.
+  const result = await ImagePicker.launchImageLibraryAsync(avatarPickerOptions);
+  if (result.canceled || !result.assets?.[0]) {
     return null;
   }
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
-    allowsEditing: true,
-    aspect: [1, 1],
-    quality: 0.85,
-  });
-  if (result.canceled || !result.assets?.[0]?.uri) {
-    return null;
-  }
-  return {uri: result.assets[0].uri};
+  return assetToPickedAvatar(result.assets[0]);
 }
 
 export function EditProfileScreen({navigation}: Props) {
   const layout = useLibraryLayout();
+  const onBack = useProfileStackBack(navigation);
   const {user: clerkUser} = useUser();
   const {user, refetchUser} = useAppUser();
   const [name, setName] = useState(
@@ -86,25 +114,27 @@ export function EditProfileScreen({navigation}: Props) {
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [localPreviewUri, setLocalPreviewUri] = useState<string | null>(null);
+  const [avatarCacheKey, setAvatarCacheKey] = useState(0);
 
   const tabClearance = layout.tabScrollBottomPadding;
-  const displayAvatarUrl = localPreviewUri || user?.avatarUrl || clerkUser?.imageUrl;
+  const remoteAvatarUrl = user?.avatarUrl || clerkUser?.imageUrl || null;
+  const displayAvatarUrl = localPreviewUri || remoteAvatarUrl;
   const hasAvatar = Boolean(displayAvatarUrl);
 
   const uploadAvatar = useCallback(
-    async (uri: string) => {
+    async (picked: PickedAvatar) => {
       if (!clerkUser) {
         toast.error('Not signed in', 'Sign in again to update your photo.');
         return;
       }
 
-      setLocalPreviewUri(uri);
+      setLocalPreviewUri(picked.uri);
       setUploadingAvatar(true);
       try {
-        const blob = await uriToBlob(uri);
-        await clerkUser.setProfileImage({file: blob});
+        await clerkUser.setProfileImage({file: picked.dataUrl});
         await clerkUser.reload();
         await refetchUser();
+        setAvatarCacheKey(Date.now());
         setLocalPreviewUri(null);
         toast.success('Photo updated', 'Your profile avatar has been saved.');
       } catch (error) {
@@ -125,6 +155,7 @@ export function EditProfileScreen({navigation}: Props) {
       await clerkUser.setProfileImage({file: null});
       await clerkUser.reload();
       await refetchUser();
+      setAvatarCacheKey(Date.now());
       setLocalPreviewUri(null);
       toast.success('Photo removed');
     } catch (error) {
@@ -135,7 +166,7 @@ export function EditProfileScreen({navigation}: Props) {
   }, [clerkUser, refetchUser]);
 
   const confirmRemoveAvatar = useCallback(() => {
-    Alert.alert('Remove photo?', 'Your profile will show initials instead.', [
+    appAlert('Remove photo?', 'Your profile will show initials instead.', [
       {text: 'Cancel', style: 'cancel'},
       {
         text: 'Remove',
@@ -150,7 +181,7 @@ export function EditProfileScreen({navigation}: Props) {
       try {
         const picked = await pickAvatarImage(source);
         if (!picked) return;
-        await uploadAvatar(picked.uri);
+        await uploadAvatar(picked);
       } catch (error) {
         toast.error('Could not open picker', getApiErrorMessage(error));
       }
@@ -161,51 +192,24 @@ export function EditProfileScreen({navigation}: Props) {
   const openAvatarMenu = useCallback(() => {
     if (uploadingAvatar) return;
 
-    if (Platform.OS === 'ios') {
-      const options = hasAvatar
-        ? ['Take Photo', 'Choose from Library', 'Remove Photo', 'Cancel']
-        : ['Take Photo', 'Choose from Library', 'Cancel'];
-      const cancelButtonIndex = hasAvatar ? 3 : 2;
-      const destructiveButtonIndex = hasAvatar ? 2 : undefined;
+    const options = hasAvatar
+      ? ['Take Photo', 'Choose from Library', 'Remove Photo', 'Cancel']
+      : ['Take Photo', 'Choose from Library', 'Cancel'];
+    const cancelButtonIndex = hasAvatar ? 3 : 2;
+    const destructiveButtonIndex = hasAvatar ? 2 : undefined;
 
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex,
-          destructiveButtonIndex,
-          title: 'Profile photo',
-          message: 'Upload a clear square photo for your Flipwise avatar.',
-        },
-        index => {
-          if (index === 0) void handlePickSource('camera');
-          if (index === 1) void handlePickSource('gallery');
-          if (hasAvatar && index === 2) confirmRemoveAvatar();
-        },
-      );
-      return;
-    }
-
-    Alert.alert(
-      'Profile photo',
-      'Upload a clear square photo for your Flipwise avatar.',
-      [
-        {text: 'Take Photo', onPress: () => void handlePickSource('camera')},
-        {
-          text: 'Choose from Library',
-          onPress: () => void handlePickSource('gallery'),
-        },
-        ...(hasAvatar
-          ? [
-              {
-                text: 'Remove Photo',
-                style: 'destructive' as const,
-                onPress: confirmRemoveAvatar,
-              },
-            ]
-          : []),
-        {text: 'Cancel', style: 'cancel'},
-      ],
-    );
+    showAppActionSheet({
+      title: 'Profile photo',
+      message: 'Upload a clear square photo for your Cardweave avatar.',
+      options,
+      cancelButtonIndex,
+      destructiveButtonIndex,
+      onPress: index => {
+        if (index === 0) void handlePickSource('camera');
+        if (index === 1) void handlePickSource('gallery');
+        if (hasAvatar && index === 2) confirmRemoveAvatar();
+      },
+    });
   }, [
     confirmRemoveAvatar,
     handlePickSource,
@@ -238,13 +242,12 @@ export function EditProfileScreen({navigation}: Props) {
 
   return (
     <View className="flex-1" style={{backgroundColor: libraryTokens.background}}>
-      <ProfileScreenHeader title="Edit profile" onBack={() => navigation.goBack()} />
+      <ProfileScreenHeader title="Edit profile" onBack={onBack} />
 
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={layout.insets.top + 64}>
-        <ScrollView
+      <View className="flex-1">
+        <KeyboardAwareScrollView
+          bottomOffset={24}
+          {...keyboardScrollProps}
           contentContainerStyle={{
             paddingHorizontal: layout.horizontalPadding,
             paddingTop: 24,
@@ -254,7 +257,6 @@ export function EditProfileScreen({navigation}: Props) {
             width: '100%',
             alignSelf: 'center',
           }}
-          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <View style={{gap: 8}}>
             <Text
@@ -323,6 +325,7 @@ export function EditProfileScreen({navigation}: Props) {
                   imageUrl={displayAvatarUrl}
                   size={AVATAR_SIZE}
                   variant="brand"
+                  cacheKey={avatarCacheKey}
                 />
                 <View
                   style={{
@@ -488,8 +491,8 @@ export function EditProfileScreen({navigation}: Props) {
               Email: {user?.email}
             </Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+      </View>
 
       <View
         style={{
@@ -510,7 +513,7 @@ export function EditProfileScreen({navigation}: Props) {
             alignSelf: 'center',
           }}>
           <Pressable
-            onPress={() => navigation.goBack()}
+            onPress={onBack}
             disabled={saving || uploadingAvatar}
             accessibilityRole="button"
             accessibilityLabel="Cancel"

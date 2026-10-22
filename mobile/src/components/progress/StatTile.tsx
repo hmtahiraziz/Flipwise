@@ -5,17 +5,20 @@ import {progressTokens} from '../../config/progressTokens';
 type StatTileProps = {
   label: string;
   value: number;
+  hint?: string;
   onPress?: () => void;
 };
 
-export function StatTile({label, value, onPress}: StatTileProps) {
+export function StatTile({label, value, hint, onPress}: StatTileProps) {
   const content = (
     <View
       className="flex-1 items-center justify-center"
       style={{
-        backgroundColor: progressTokens.surfaceWarm,
+        backgroundColor: progressTokens.background,
         borderRadius: progressTokens.tileRadius,
-        paddingVertical: 16,
+        borderWidth: 1,
+        borderColor: progressTokens.borderWarm,
+        paddingVertical: 14,
         paddingHorizontal: 8,
         minHeight: 88,
       }}>
@@ -42,6 +45,20 @@ export function StatTile({label, value, onPress}: StatTileProps) {
         }}>
         {value}
       </Text>
+      {hint ? (
+        <Text
+          style={{
+            fontFamily: fonts.body,
+            fontSize: 11,
+            lineHeight: 14,
+            color: progressTokens.mutedWarm,
+            marginTop: 2,
+            textAlign: 'center',
+          }}
+          numberOfLines={1}>
+          {hint}
+        </Text>
+      ) : null}
     </View>
   );
 

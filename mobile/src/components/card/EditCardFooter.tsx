@@ -1,126 +1,147 @@
-import {ActivityIndicator, Pressable, Text, View} from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import {fonts} from '../../config/theme';
+import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 
 type EditCardFooterProps = {
-  isEditing: boolean;
+  /** Defaults: editing → "Save Card", new → "Save Card" / compact "Add" */
+  isEditing?: boolean;
+  saveLabel?: string;
   saving?: boolean;
-  deleting?: boolean;
+  disabled?: boolean;
   onSave: () => void;
   onCancel?: () => void;
-  onDelete?: () => void;
   compact?: boolean;
+  showSaveIcon?: boolean;
 };
 
-const BUTTON_HEIGHT = 52;
-
-/** Stitch Edit Card footer — Cancel + Save Card. */
+/** Flat Cancel + primary Save — no border/shadow (matches Generate). */
 export function EditCardFooter({
-  isEditing,
+  isEditing = false,
+  saveLabel: saveLabelProp,
   saving = false,
-  deleting = false,
+  disabled = false,
   onSave,
   onCancel,
-  onDelete: _onDelete,
   compact,
+  showSaveIcon = true,
 }: EditCardFooterProps) {
-  const busy = saving || deleting;
-  const saveLabel = isEditing
-    ? compact
-      ? 'Save'
-      : 'Save Card'
-    : compact
-      ? 'Add'
-      : 'Save Card';
+  const busy = saving || disabled;
+  const saveLabel =
+    saveLabelProp ??
+    (isEditing
+      ? compact
+        ? 'Save'
+        : 'Save Card'
+      : compact
+        ? 'Add'
+        : 'Save Card');
 
   return (
-    <View
-      style={{
-        paddingHorizontal: libraryTokens.containerPadding,
-        paddingTop: 12,
-        paddingBottom: 8,
-        backgroundColor: 'rgba(249, 250, 246, 0.92)',
-        borderTopWidth: 1,
-        borderTopColor: libraryTokens.borderSubtle,
-      }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 12,
-          maxWidth: libraryTokens.contentMaxWidthWide,
-          width: '100%',
-          alignSelf: 'center',
-        }}>
-        <Pressable
-          onPress={onCancel}
-          disabled={busy || !onCancel}
-          accessibilityRole="button"
-          accessibilityLabel="Cancel"
-          className="active:opacity-90"
-          style={{
-            flex: 1,
-            minHeight: 48,
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 999,
-            backgroundColor: libraryTokens.surface,
-            borderWidth: 1,
-            borderColor: libraryTokens.border,
-            opacity: busy ? 0.6 : 1,
-          }}>
-          <Text
-            style={{
-              fontFamily: fonts.bodySemiBold,
-              fontSize: 14,
-              color: libraryTokens.ink,
-            }}>
-            Cancel
-          </Text>
-        </Pressable>
+    <View style={styles.shell}>
+      <View style={styles.actions}>
+        {onCancel ? (
+          <Pressable
+            onPress={onCancel}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+            style={[styles.cancelBtn, busy ? styles.btnDisabled : null]}>
+            <Text style={styles.cancelLabel}>Cancel</Text>
+          </Pressable>
+        ) : null}
 
         <Pressable
           onPress={onSave}
           disabled={busy}
           accessibilityRole="button"
           accessibilityLabel={saveLabel}
-          className="active:opacity-95"
-          style={{
-            flex: 2,
-            minHeight: BUTTON_HEIGHT,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            borderRadius: 999,
-            backgroundColor: libraryTokens.primaryContainer,
-            opacity: busy ? 0.75 : 1,
-          }}>
-          {saving ? (
-            <ActivityIndicator
-              size="small"
-              color={libraryTokens.onPrimaryContainer}
-            />
-          ) : (
-            <MaterialIcons
-              name="check"
-              size={20}
-              color={libraryTokens.onPrimaryContainer}
-            />
-          )}
-          <Text
-            style={{
-              fontFamily: fonts.bodyBold,
-              fontSize: 14,
-              color: libraryTokens.onPrimaryContainer,
-            }}>
-            {saveLabel}
-          </Text>
+          style={[styles.saveBtn, busy ? styles.btnDisabled : null]}>
+          <View style={styles.saveInner}>
+            {saving ? (
+              <ActivityIndicator size="small" color={brandColors.charcoal} />
+            ) : showSaveIcon ? (
+              <MaterialIcons
+                name="check"
+                size={18}
+                color={brandColors.charcoal}
+              />
+            ) : null}
+            <Text
+              style={[
+                styles.saveLabel,
+                !showSaveIcon && !saving ? styles.saveLabelSolo : null,
+              ]}
+              numberOfLines={1}>
+              {saveLabel}
+            </Text>
+          </View>
         </Pressable>
       </View>
     </View>
   );
 }
 
-export const EDIT_CARD_FOOTER_HEIGHT = BUTTON_HEIGHT + 12 + 8 + 1;
+export const EDIT_CARD_FOOTER_HEIGHT = 52 + 12 + 10;
+
+const styles = StyleSheet.create({
+  shell: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 10,
+    backgroundColor: brandColors.surface,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    maxWidth: libraryTokens.contentMaxWidthWide,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  cancelBtn: {
+    width: 108,
+    height: 52,
+    borderRadius: 999,
+    backgroundColor: libraryTokens.surfaceContainerLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  cancelLabel: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 14,
+    color: brandColors.charcoal,
+  },
+  saveBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 999,
+    backgroundColor: brandColors.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  saveInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveLabel: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 14,
+    color: brandColors.charcoal,
+    marginLeft: 8,
+  },
+  saveLabelSolo: {
+    marginLeft: 0,
+  },
+  btnDisabled: {
+    opacity: 0.55,
+  },
+});

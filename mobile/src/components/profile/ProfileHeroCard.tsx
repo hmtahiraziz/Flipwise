@@ -1,6 +1,6 @@
 import {Text, View} from 'react-native';
 import {SilhouetteCard} from '../ui/SilhouetteCard';
-import {fonts} from '../../config/theme';
+import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 import {reviewTokens} from '../../config/reviewTokens';
 import {ProfileAvatar} from './ProfileAvatar';
@@ -31,8 +31,8 @@ export function ProfileHeroCard({name, email, imageUrl}: ProfileHeroCardProps) {
             padding: 4,
             borderRadius: 999,
             borderWidth: 3,
-            borderColor: libraryTokens.primaryContainer,
-            backgroundColor: libraryTokens.surface,
+            borderColor: brandColors.lime,
+            backgroundColor: brandColors.surface,
           }}>
           <ProfileAvatar
             name={name}

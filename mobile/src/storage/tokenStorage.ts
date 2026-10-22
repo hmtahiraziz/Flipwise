@@ -1,6 +1,6 @@
 import {createSafeMMKV} from './createSafeMMKV';
 
-const storage = createSafeMMKV('flipwise-auth');
+const storage = createSafeMMKV('cardweave-auth');
 
 const KEYS = {
   accessToken: 'accessToken',

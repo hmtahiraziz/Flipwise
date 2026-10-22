@@ -1,8 +1,7 @@
-import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useQueryClient} from '@tanstack/react-query';
 import {useCallback, useState} from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   Text,
@@ -14,6 +13,7 @@ import {DeckDetailScreenHeader} from '../../components/deck/DeckDetailScreenHead
 import {DeckDetailStatTile} from '../../components/deck/DeckDetailStatTile';
 import {DeckMasteryCard} from '../../components/deck/DeckMasteryCard';
 import {HeaderProfileButton} from '../../components/profile/HeaderProfileButton';
+import {appAlert, showAppActionSheet} from '../../components/ui/AppAlert';
 import {SkeletonCard} from '../../components/ui/Skeleton';
 import {toast} from '../../components/ui/Toast';
 import {deckDetailTokens} from '../../config/deckDetailTokens';
@@ -26,23 +26,20 @@ import {getSubjectIcon} from '../../lib/subjectIcons';
 import {useCards} from '../../hooks/useCards';
 import {useDeck, useDeckMutations} from '../../hooks/useDecks';
 import {useLibraryLayout} from '../../hooks/useLibraryLayout';
-import type {
-  LibraryStackParamList,
-  MainTabParamList,
-} from '../../navigation/types';
+import {reviewKeys} from '../../hooks/useReviews';
+import {fetchReviewQueue} from '../../services/api/reviewApi';
+import type {LibraryStackParamList} from '../../navigation/types';
 
 type Props = NativeStackScreenProps<LibraryStackParamList, 'DeckDetail'>;
 
 export function DeckDetailScreen({navigation, route}: Props) {
   const {deckId} = route.params;
   const layout = useLibraryLayout();
+  const queryClient = useQueryClient();
   const {data: deck, isLoading, error, refetch} = useDeck(deckId);
   const {data: cards = []} = useCards(deckId);
   const {deleteDeck, updateDeck} = useDeckMutations();
   const [favoriting, setFavoriting] = useState(false);
-
-  const tabNavigation =
-    navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
 
   const horizontalPadding = layout.isNarrow
     ? 16
@@ -50,7 +47,7 @@ export function DeckDetailScreen({navigation, route}: Props) {
   const screenBg = {backgroundColor: deckDetailTokens.surface};
 
   const confirmDelete = () => {
-    Alert.alert(
+    appAlert(
       'Delete deck',
       'This will permanently delete the deck and all its cards.',
       [
@@ -65,18 +62,22 @@ export function DeckDetailScreen({navigation, route}: Props) {
   };
 
   const openOverflowMenu = () => {
-    Alert.alert(deck?.title ?? 'Deck', undefined, [
-      {
-        text: 'Edit deck',
-        onPress: () => navigation.navigate('EditDeck', {deckId}),
+    showAppActionSheet({
+      title: deck?.title ?? 'Deck',
+      options: [
+        'Edit deck',
+        deck?.isFavorite ? 'Unstar deck' : 'Star deck',
+        'Delete deck',
+        'Cancel',
+      ],
+      cancelButtonIndex: 3,
+      destructiveButtonIndex: 2,
+      onPress: index => {
+        if (index === 0) navigation.navigate('EditDeck', {deckId});
+        if (index === 1) void toggleFavorite();
+        if (index === 2) confirmDelete();
       },
-      {
-        text: deck?.isFavorite ? 'Unstar deck' : 'Star deck',
-        onPress: () => void toggleFavorite(),
-      },
-      {text: 'Delete deck', style: 'destructive', onPress: confirmDelete},
-      {text: 'Cancel', style: 'cancel'},
-    ]);
+    });
   };
 
   const handleDelete = async () => {
@@ -103,12 +104,13 @@ export function DeckDetailScreen({navigation, route}: Props) {
     }
   }, [deck, deckId, favoriting, updateDeck]);
 
-  const startReview = () => {
-    tabNavigation?.navigate('Review', {
-      screen: 'ReviewSession',
-      params: {deckId},
+  const startReview = useCallback(() => {
+    void queryClient.prefetchQuery({
+      queryKey: reviewKeys.queue(deckId),
+      queryFn: () => fetchReviewQueue(deckId),
     });
-  };
+    navigation.navigate('ReviewSession', {deckId, forceFresh: true});
+  }, [deckId, navigation, queryClient]);
 
   const headerRight = <HeaderProfileButton />;
 

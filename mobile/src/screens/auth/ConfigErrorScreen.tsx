@@ -1,5 +1,5 @@
 import {Text, View} from 'react-native';
-import {FlipwiseWordmark} from '../../components/brand/FlipwiseWordmark';
+import {CardweaveWordmark} from '../../components/brand/CardweaveWordmark';
 
 type Props = {
   title?: string;
@@ -12,7 +12,7 @@ export function ConfigErrorScreen({
 }: Props) {
   return (
     <View className="flex-1 bg-background items-center justify-center px-8">
-      <FlipwiseWordmark variant="light" iconSize={44} />
+      <CardweaveWordmark variant="light" iconSize={44} />
       <Text className="text-heading font-display text-text mt-8 mb-2 text-center">
         {title}
       </Text>

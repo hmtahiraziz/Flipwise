@@ -1,7 +1,16 @@
 import { and, asc, eq, lte, sql } from "drizzle-orm";
 import { getDb } from "../db";
-import { cardReviews, decks, flashcards } from "../db/schema";
+import {
+  cardReviews,
+  decks,
+  flashcards,
+  reviewIdempotency,
+} from "../db/schema";
 import { AppError } from "../middleware/errorHandler";
+import {
+  addCalendarDays,
+  calendarDateInTimeZone,
+} from "../utils/dates";
 import {
   calculateSm2,
   easeRatingToQuality,
@@ -39,19 +48,14 @@ export type RateCardResult = {
   };
 };
 
-function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+const IDEMPOTENCY_DEBOUNCE_MS = 2_000;
 
-function addDays(dateStr: string, days: number): string {
-  const date = new Date(`${dateStr}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function computeNextReviewDate(intervalDays: number): string {
-  const today = todayDateString();
-  return intervalDays <= 0 ? today : addDays(today, intervalDays);
+function computeNextReviewDate(
+  intervalDays: number,
+  timeZone?: string,
+): string {
+  const today = calendarDateInTimeZone(timeZone);
+  return intervalDays <= 0 ? today : addCalendarDays(today, intervalDays);
 }
 
 export function serializeReviewQueueItem(item: ReviewQueueItem) {
@@ -72,9 +76,10 @@ export function serializeRateResult(result: RateCardResult) {
 export async function getReviewQueueForUser(
   userId: string,
   deckId?: string,
+  timeZone?: string,
 ): Promise<ReviewQueueItem[]> {
   const db = getDb();
-  const today = todayDateString();
+  const today = calendarDateInTimeZone(timeZone);
 
   const conditions = [
     eq(cardReviews.userId, userId),
@@ -142,11 +147,56 @@ export async function getReviewQueueForUser(
   }));
 }
 
+function toRateResult(
+  existing: {
+    cardId: string;
+    deckId: string;
+    question: string;
+    answer: string;
+    explanation: string | null;
+    hint: string | null;
+    cardType: string;
+    imageUrl: string | null;
+    sortOrder: number;
+    cardCreatedAt: Date;
+    cardUpdatedAt: Date;
+  },
+  sm2Result: Sm2Result,
+  nextReviewDate: string,
+  lastReviewedAt: Date,
+): RateCardResult {
+  return {
+    card: {
+      id: existing.cardId,
+      deckId: existing.deckId,
+      question: existing.question,
+      answer: existing.answer,
+      explanation: existing.explanation,
+      hint: existing.hint,
+      cardType: existing.cardType,
+      imageUrl: existing.imageUrl,
+      sortOrder: existing.sortOrder,
+      createdAt: existing.cardCreatedAt,
+      updatedAt: existing.cardUpdatedAt,
+    },
+    review: {
+      easeFactor: sm2Result.easeFactor,
+      intervalDays: sm2Result.intervalDays,
+      repetitions: sm2Result.repetitions,
+      nextReviewDate,
+      lastReviewedAt: lastReviewedAt.toISOString(),
+    },
+  };
+}
+
 export async function rateCardForUser(
   userId: string,
   cardId: string,
   rating: EaseRating,
-  minutesStudied = 0,
+  options?: {
+    timeZone?: string;
+    idempotencyKey?: string;
+  },
 ): Promise<RateCardResult> {
   const quality = easeRatingToQuality[rating];
   if (quality === undefined) {
@@ -154,6 +204,26 @@ export async function rateCardForUser(
   }
 
   const db = getDb();
+  const idempotencyKey = options?.idempotencyKey?.trim();
+
+  if (idempotencyKey) {
+    const [cached] = await db
+      .select({
+        responseJson: reviewIdempotency.responseJson,
+      })
+      .from(reviewIdempotency)
+      .where(
+        and(
+          eq(reviewIdempotency.userId, userId),
+          eq(reviewIdempotency.idempotencyKey, idempotencyKey),
+        ),
+      )
+      .limit(1);
+
+    if (cached) {
+      return JSON.parse(cached.responseJson) as RateCardResult;
+    }
+  }
 
   const [existing] = await db
     .select({
@@ -161,6 +231,8 @@ export async function rateCardForUser(
       easeFactor: cardReviews.easeFactor,
       intervalDays: cardReviews.intervalDays,
       repetitions: cardReviews.repetitions,
+      lastReviewedAt: cardReviews.lastReviewedAt,
+      nextReviewDate: cardReviews.nextReviewDate,
       cardId: flashcards.id,
       deckId: flashcards.deckId,
       question: flashcards.question,
@@ -189,6 +261,36 @@ export async function rateCardForUser(
     throw new AppError(404, "Review not found");
   }
 
+  // Soft debounce: identical rapid double-taps without an idempotency key.
+  if (
+    !idempotencyKey &&
+    existing.lastReviewedAt &&
+    Date.now() - existing.lastReviewedAt.getTime() < IDEMPOTENCY_DEBOUNCE_MS
+  ) {
+    return {
+      card: {
+        id: existing.cardId,
+        deckId: existing.deckId,
+        question: existing.question,
+        answer: existing.answer,
+        explanation: existing.explanation,
+        hint: existing.hint,
+        cardType: existing.cardType,
+        imageUrl: existing.imageUrl,
+        sortOrder: existing.sortOrder,
+        createdAt: existing.cardCreatedAt,
+        updatedAt: existing.cardUpdatedAt,
+      },
+      review: {
+        easeFactor: existing.easeFactor,
+        intervalDays: existing.intervalDays,
+        repetitions: existing.repetitions,
+        nextReviewDate: existing.nextReviewDate,
+        lastReviewedAt: existing.lastReviewedAt.toISOString(),
+      },
+    };
+  }
+
   const sm2Result: Sm2Result = calculateSm2({
     easeFactor: existing.easeFactor,
     intervalDays: existing.intervalDays,
@@ -196,7 +298,10 @@ export async function rateCardForUser(
     quality,
   });
 
-  const nextReviewDate = computeNextReviewDate(sm2Result.intervalDays);
+  const nextReviewDate = computeNextReviewDate(
+    sm2Result.intervalDays,
+    options?.timeZone,
+  );
   const lastReviewedAt = new Date();
 
   await db
@@ -208,35 +313,39 @@ export async function rateCardForUser(
       nextReviewDate,
       lastReviewedAt,
     })
-    .where(eq(cardReviews.id, existing.reviewId));
+    .where(
+      and(
+        eq(cardReviews.id, existing.reviewId),
+        eq(cardReviews.userId, userId),
+      ),
+    );
 
   await db
     .update(decks)
     .set({ updatedAt: sql`now()` })
-    .where(eq(decks.id, existing.deckId));
+    .where(and(eq(decks.id, existing.deckId), eq(decks.userId, userId)));
 
-  await recordStudyActivity(userId, minutesStudied);
+  // Server-owned study minutes — do not trust client duration.
+  await recordStudyActivity(userId, 1, options?.timeZone);
 
-  return {
-    card: {
-      id: existing.cardId,
-      deckId: existing.deckId,
-      question: existing.question,
-      answer: existing.answer,
-      explanation: existing.explanation,
-      hint: existing.hint,
-      cardType: existing.cardType,
-      imageUrl: existing.imageUrl,
-      sortOrder: existing.sortOrder,
-      createdAt: existing.cardCreatedAt,
-      updatedAt: existing.cardUpdatedAt,
-    },
-    review: {
-      easeFactor: sm2Result.easeFactor,
-      intervalDays: sm2Result.intervalDays,
-      repetitions: sm2Result.repetitions,
-      nextReviewDate,
-      lastReviewedAt: lastReviewedAt.toISOString(),
-    },
-  };
+  const result = toRateResult(
+    existing,
+    sm2Result,
+    nextReviewDate,
+    lastReviewedAt,
+  );
+
+  if (idempotencyKey) {
+    await db
+      .insert(reviewIdempotency)
+      .values({
+        userId,
+        idempotencyKey,
+        flashcardId: cardId,
+        responseJson: JSON.stringify(result),
+      })
+      .onConflictDoNothing();
+  }
+
+  return result;
 }

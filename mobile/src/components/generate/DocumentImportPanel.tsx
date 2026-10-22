@@ -596,7 +596,7 @@ export function DocumentImportPanel({
                   fontSize: 12,
                   color: libraryTokens.ink,
                 }}>
-                Flipwise AI Engine
+                Cardweave AI Engine
               </Text>
               <Text
                 style={{

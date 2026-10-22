@@ -8,7 +8,7 @@ import {HomeStack} from './HomeStack';
 import {LibraryStack} from './LibraryStack';
 import {ProgressStack} from './ProgressStack';
 import {ReviewStack} from './ReviewStack';
-import type {MainTabParamList} from './types';
+import type {MainTabParamList, ProfileRoutesParamList} from './types';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -30,21 +30,54 @@ const HIDDEN_TAB_ROUTES = new Set([
   'QuizSession',
 ]);
 
+const PROFILE_ROUTES = new Set<keyof ProfileRoutesParamList>([
+  'ProfileHome',
+  'Settings',
+  'EditProfile',
+  'PrivacyPolicy',
+  'TermsOfService',
+  'DataHandling',
+]);
+
 function MainTabBar({state, navigation}: BottomTabBarProps) {
   const route = state.routes[state.index];
   const focusedRouteName =
     getFocusedRouteNameFromRoute(route) ?? route?.name ?? 'Home';
 
-  if (HIDDEN_TAB_ROUTES.has(focusedRouteName)) {
-    return null;
-  }
-
+  const tabBarVisible = !HIDDEN_TAB_ROUTES.has(focusedRouteName);
   const activeKey = route?.name ?? 'Home';
+  // Edit Profile / Privacy / Terms live under Settings — keep Settings highlighted,
+  // not the underlying Home/Library/Review/Progress tab.
+  const settingsActive = PROFILE_ROUTES.has(
+    focusedRouteName as keyof ProfileRoutesParamList,
+  );
+
+  const tabRootScreen = (tabName: string) =>
+    tabName === 'Home'
+      ? 'HomeHome'
+      : tabName === 'Library'
+        ? 'DeckList'
+        : tabName === 'Review'
+          ? 'ReviewHome'
+          : 'ProgressHome';
 
   return (
     <FloatingTabBar
       tabs={TAB_ITEMS}
       activeKey={activeKey}
+      settingsActive={settingsActive}
+      visible={tabBarVisible}
+      onSettingsPress={() => {
+        const currentTab = activeKey as keyof MainTabParamList;
+        if (focusedRouteName === 'Settings') {
+          return;
+        }
+        // Keep the tab root under Settings so Back returns here, not the prior tab.
+        navigation.navigate(currentTab, {
+          screen: 'Settings',
+          initial: false,
+        });
+      }}
       onTabPress={key => {
         const target = state.routes.find(r => r.name === key);
         if (!target) return;
@@ -56,6 +89,23 @@ function MainTabBar({state, navigation}: BottomTabBarProps) {
         });
 
         if (!event.defaultPrevented) {
+          const nestedName =
+            target.name === activeKey
+              ? focusedRouteName
+              : getFocusedRouteNameFromRoute(target);
+          const onProfileRoute =
+            nestedName &&
+            PROFILE_ROUTES.has(nestedName as keyof ProfileRoutesParamList);
+
+          // Leave Settings/Edit Profile/legal screens for the tab root — never
+          // leave Home highlighted while still showing a settings screen.
+          if (onProfileRoute) {
+            navigation.navigate(target.name, {
+              screen: tabRootScreen(target.name),
+            });
+            return;
+          }
+
           navigation.navigate(target.name);
         }
       }}
@@ -67,10 +117,11 @@ export function MainTabs() {
   return (
     <View className="flex-1 bg-background">
       <Tab.Navigator
-        tabBar={props => <MainTabBar {...props} />}
+        tabBar={MainTabBar}
         screenOptions={{
           headerShown: false,
-          lazy: true,
+          lazy: false,
+          freezeOnBlur: true,
         }}>
         <Tab.Screen name="Home">
           {() => (

@@ -1,8 +1,8 @@
-export const APP_NAME = 'Flipwise';
+export const APP_NAME = 'Cardweave';
 export const APP_TAGLINE = 'Study smarter with spaced repetition';
-export const BUNDLE_ID = 'com.flipwise.app';
+export const BUNDLE_ID = 'com.cardweave.app';
 
-/** Brand palette from official Flipwise identity */
+/** Brand palette from official Cardweave identity */
 export const brandColors = {
   charcoal: '#1A1C1E',
   lime: '#C9FF2B',

@@ -1,4 +1,4 @@
-import { and, asc, eq, max, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { cardReviews, decks, flashcards } from "../db/schema";
 import { AppError } from "../middleware/errorHandler";
@@ -113,13 +113,6 @@ export async function getCardForUser(
   return row;
 }
 
-async function assertCardOwnership(
-  userId: string,
-  cardId: string,
-): Promise<FlashcardRecord> {
-  return getCardForUser(userId, cardId);
-}
-
 export async function listCardsForDeck(
   userId: string,
   deckId: string,
@@ -209,13 +202,16 @@ export async function createCardsBulkForDeck(
   return rows;
 }
 
+function ownedDeckIdsSubquery(userId: string) {
+  const db = getDb();
+  return db.select({ id: decks.id }).from(decks).where(eq(decks.userId, userId));
+}
+
 export async function updateCardForUser(
   userId: string,
   cardId: string,
   input: UpdateCardInput,
 ): Promise<FlashcardRecord> {
-  await assertCardOwnership(userId, cardId);
-
   const db = getDb();
   const [updated] = await db
     .update(flashcards)
@@ -230,7 +226,12 @@ export async function updateCardForUser(
       ...(input.imageUrl !== undefined ? { imageUrl: input.imageUrl } : {}),
       updatedAt: new Date(),
     })
-    .where(eq(flashcards.id, cardId))
+    .where(
+      and(
+        eq(flashcards.id, cardId),
+        inArray(flashcards.deckId, ownedDeckIdsSubquery(userId)),
+      ),
+    )
     .returning(flashcardColumns);
 
   if (!updated) {
@@ -244,12 +245,15 @@ export async function deleteCardForUser(
   userId: string,
   cardId: string,
 ): Promise<void> {
-  await assertCardOwnership(userId, cardId);
-
   const db = getDb();
   const [deleted] = await db
     .delete(flashcards)
-    .where(eq(flashcards.id, cardId))
+    .where(
+      and(
+        eq(flashcards.id, cardId),
+        inArray(flashcards.deckId, ownedDeckIdsSubquery(userId)),
+      ),
+    )
     .returning({ id: flashcards.id });
 
   if (!deleted) {

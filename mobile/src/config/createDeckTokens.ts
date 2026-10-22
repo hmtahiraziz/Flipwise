@@ -6,13 +6,6 @@ export const createDeckTokens = {
   helperText: '#82887A',
   inputBg: '#F7F8F5',
   cardRadius: 24,
-  cardShadow: {
-    shadowColor: '#000000',
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.04,
-    shadowRadius: 20,
-    elevation: 3,
-  },
   focusBorder: '#C6F135',
   previewBadgeBg: 'rgba(255, 255, 255, 0.5)',
   previewDot: '#C6F135',

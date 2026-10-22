@@ -1,4 +1,4 @@
-package com.flipwise.app
+package com.cardweave.app
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

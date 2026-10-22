@@ -1,6 +1,6 @@
 import {createSafeMMKV} from './createSafeMMKV';
 
-const storage = createSafeMMKV('flipwise-prefs');
+const storage = createSafeMMKV('cardweave-prefs');
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 
@@ -19,6 +19,8 @@ export type AppPreferences = {
   subjects: string[];
   examDate: string | null;
   remindersEnabled: boolean;
+  /** User agreed to send study content to the AI provider for generate/OCR/explain. */
+  aiProcessingConsent: boolean;
 };
 
 const DEFAULTS: AppPreferences = {
@@ -36,6 +38,7 @@ const DEFAULTS: AppPreferences = {
   subjects: [],
   examDate: null,
   remindersEnabled: false,
+  aiProcessingConsent: false,
 };
 
 const KEY = 'preferences_v1';

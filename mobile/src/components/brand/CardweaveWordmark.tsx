@@ -2,9 +2,9 @@ import {Text, View} from 'react-native';
 import {APP_NAME} from '../../config/brand';
 import {brandColors} from '../../config/brand';
 import {colors, fonts} from '../../config/theme';
-import {FlipwiseLogo} from './FlipwiseLogo';
+import {CardweaveLogo} from './CardweaveLogo';
 
-type FlipwiseWordmarkProps = {
+type CardweaveWordmarkProps = {
   /** Icon size for composed (light) variant */
   iconSize?: number;
   /** Total width for PNG lockups */
@@ -12,15 +12,15 @@ type FlipwiseWordmarkProps = {
   variant?: 'light' | 'dark-horizontal' | 'dark-stacked';
 };
 
-export function FlipwiseWordmark({
+export function CardweaveWordmark({
   iconSize = 40,
   width = 220,
   variant = 'light',
-}: FlipwiseWordmarkProps) {
+}: CardweaveWordmarkProps) {
   if (variant === 'dark-stacked') {
     return (
       <View className="items-center" accessibilityLabel={APP_NAME}>
-        <FlipwiseLogo size={Math.round(width * 0.42)} />
+        <CardweaveLogo size={Math.round(width * 0.42)} />
         <Text
           style={{
             fontFamily: fonts.display,
@@ -41,7 +41,7 @@ export function FlipwiseWordmark({
         className="flex-row items-center"
         style={{gap: 12}}
         accessibilityLabel={APP_NAME}>
-        <FlipwiseLogo size={Math.round(width * 0.18)} />
+        <CardweaveLogo size={Math.round(width * 0.18)} />
         <Text
           style={{
             fontFamily: fonts.display,
@@ -59,7 +59,7 @@ export function FlipwiseWordmark({
 
   return (
     <View className="flex-row items-center" style={{gap: Math.round(iconSize * 0.28)}}>
-      <FlipwiseLogo size={iconSize} />
+      <CardweaveLogo size={iconSize} />
       <Text
         style={{
           fontFamily: fonts.display,

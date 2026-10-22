@@ -97,6 +97,30 @@ export type GenerateCardsRequest = {
   cardFormat?: 'qa' | 'cloze';
   detailMode?: 'concise' | 'examples';
   language?: string;
+  /** Required by API — user consented to AI processing. */
+  aiConsent: true;
+};
+
+export type ContentReportReason =
+  | 'inaccurate'
+  | 'offensive'
+  | 'harmful'
+  | 'copyright'
+  | 'spam'
+  | 'other';
+
+export type CreateContentReportRequest = {
+  reason: ContentReportReason;
+  details?: string | null;
+  flashcardId?: string;
+};
+
+export type ContentReportResponse = {
+  report: {
+    id: string;
+    reason: ContentReportReason;
+    createdAt: string;
+  };
 };
 
 export type ImportSourceResponse = {

@@ -1,6 +1,7 @@
 import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useQueryClient} from '@tanstack/react-query';
 import {useCallback, useMemo, useState} from 'react';
 import {
   Pressable,
@@ -12,20 +13,29 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {PickDeckForAiSheet} from '../../components/library/PickDeckForAiSheet';
-import {ProfileAvatar} from '../../components/profile/ProfileAvatar';
+import {HeaderProfileButton} from '../../components/profile/HeaderProfileButton';
 import {Button} from '../../components/ui/Button';
+import {FirstRunEmpty} from '../../components/ui/FirstRunEmpty';
 import {SkeletonCard} from '../../components/ui/Skeleton';
 import {brandColors, elevation, fonts, radii} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 import {useAppUser} from '../../hooks/useAppUser';
 import {useDecks} from '../../hooks/useDecks';
 import {useProgressHistory, useProgressSummary} from '../../hooks/useProgress';
-import {useProfileNavigation} from '../../hooks/useProfileNavigation';
-import {useReviewQueue} from '../../hooks/useReviews';
+import {reviewKeys, useReviewQueue} from '../../hooks/useReviews';
 import {useScreenLayout} from '../../hooks/useScreenLayout';
+import {fetchReviewQueue} from '../../services/api/reviewApi';
 import {deckMasteryPercent} from '../../lib/deckMastery';
+import {
+  daysUntilExam,
+  examPlanDueCount,
+  pickExamReviewDeck,
+  resolveExamPlanDecks,
+  suggestedExamCardsPerDay,
+} from '../../lib/examPlan';
 import {getApiErrorMessage} from '../../lib/errors';
 import {formatLastStudiedRelative} from '../../lib/sm2';
+import {maybeShowStudyReminder} from '../../lib/studyReminders';
 import {getSubjectIcon} from '../../lib/subjectIcons';
 import type {
   GenerateSourceType,
@@ -40,7 +50,6 @@ import axios from 'axios';
 type Props = NativeStackScreenProps<HomeStackParamList, 'HomeHome'>;
 
 const SECONDS_PER_CARD = 20;
-const ACCENT_RED = '#FF5449';
 const SUBTEXT = '#70757D';
 
 function timeGreeting(date = new Date()): string {
@@ -69,15 +78,6 @@ function firstNameFrom(name?: string | null): string {
 function estimateMinutes(cardCount: number): number {
   if (cardCount <= 0) return 0;
   return Math.max(1, Math.round((cardCount * SECONDS_PER_CARD) / 60));
-}
-
-function daysUntil(isoDate: string): number | null {
-  const target = new Date(isoDate);
-  if (Number.isNaN(target.getTime())) return null;
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  target.setHours(0, 0, 0, 0);
-  return Math.ceil((target.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function isOfflineError(error: unknown): boolean {
@@ -268,7 +268,7 @@ function QuickAction({
 export function HomeScreen({navigation}: Props) {
   const layout = useScreenLayout();
   const tabNav = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
-  const {openProfile} = useProfileNavigation();
+  const queryClient = useQueryClient();
   const {user} = useAppUser();
 
   const {
@@ -330,6 +330,12 @@ export function HomeScreen({navigation}: Props) {
     );
   }, [queue.length, summary, decks]);
 
+  useFocusEffect(
+    useCallback(() => {
+      maybeShowStudyReminder(dueCount);
+    }, [dueCount]),
+  );
+
   const reviewedToday = summary?.reviewedTodayCount ?? 0;
   const streak = summary?.currentStreak ?? 0;
   const goalProgress = Math.min(1, dailyGoal > 0 ? reviewedToday / dailyGoal : 0);
@@ -369,24 +375,46 @@ export function HomeScreen({navigation}: Props) {
       .slice(0, 3);
   }, [decks]);
 
-  const weakDecks = useMemo(() => {
+  const quizDecks = useMemo(() => {
     return [...decks]
-      .filter(d => {
-        if (d.isArchived || d.cardCount === 0) return false;
+      .filter(d => !d.isArchived && d.cardCount >= 1)
+      .map(d => {
         const mastery = deckMasteryPercent(d);
-        return (d.lateCount ?? 0) > 0 || (mastery > 0 && mastery < 50);
+        const due = (d.dueTodayCount ?? 0) + (d.lateCount ?? 0);
+        const score = (d.lateCount ?? 0) * 3 + due + (100 - mastery);
+        return {deck: d, mastery, due, score};
       })
-      .sort((a, b) => (b.lateCount ?? 0) - (a.lateCount ?? 0))
-      .slice(0, 2);
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
   }, [decks]);
 
+  const openQuiz = useCallback(
+    (deckId: string) => {
+      navigation.navigate('QuizSession', {deckId});
+    },
+    [navigation],
+  );
+
   const examDate = studyPlan?.examDate || examDatePref;
-  const examDays = examDate ? daysUntil(examDate) : null;
-  const examPlanCards =
-    studyPlan?.dailyTarget ??
-    (examDays != null && examDays > 0
-      ? Math.max(1, Math.ceil(dueCount / examDays))
-      : null);
+  const examDays = examDate ? daysUntilExam(examDate) : null;
+  const examMinutes = studyPlan?.minutesPerDay ?? null;
+  const examPlanDecks = useMemo(
+    () => resolveExamPlanDecks(decks, studyPlan),
+    [decks, studyPlan],
+  );
+  const examDueCount = useMemo(
+    () => examPlanDueCount(examPlanDecks),
+    [examPlanDecks],
+  );
+  const examPlanCards = suggestedExamCardsPerDay(
+    examDueCount,
+    examDays,
+    studyPlan?.dailyTarget,
+  );
+  const examDeckLabel =
+    studyPlan?.deckIds && studyPlan.deckIds.length > 0
+      ? `${examPlanDecks.length} deck${examPlanDecks.length === 1 ? '' : 's'}`
+      : null;
   const examTitle = examDate ? 'Upcoming exam' : 'Set exam plan';
 
   const displayName = firstNameFrom(user?.name);
@@ -417,13 +445,27 @@ export function HomeScreen({navigation}: Props) {
 
   const openDeckReview = useCallback(
     (deckId: string) => {
-      tabNav.navigate('Review', {
-        screen: 'ReviewSession',
-        params: {deckId},
+      void queryClient.prefetchQuery({
+        queryKey: reviewKeys.queue(deckId),
+        queryFn: () => fetchReviewQueue(deckId),
       });
+      navigation.navigate('ReviewSession', {deckId, forceFresh: true});
     },
-    [tabNav],
+    [navigation, queryClient],
   );
+
+  const startExamReview = useCallback(() => {
+    const deck = pickExamReviewDeck(examPlanDecks);
+    if (deck) {
+      openDeckReview(deck.id);
+      return;
+    }
+    if (dueCount > 0) {
+      tabNav.navigate('Review', {screen: 'ReviewSession', params: {}});
+      return;
+    }
+    tabNav.navigate('Review', {screen: 'ReviewHome'});
+  }, [examPlanDecks, openDeckReview, dueCount, tabNav]);
 
   const openLibrary = useCallback(() => {
     tabNav.navigate('Library');
@@ -432,10 +474,6 @@ export function HomeScreen({navigation}: Props) {
   const openCreateDeck = useCallback(() => {
     tabNav.navigate('Library', {screen: 'CreateDeck'});
   }, [tabNav]);
-
-  const openSettings = useCallback(() => {
-    navigation.navigate('Settings');
-  }, [navigation]);
 
   const openDeckPicker = useCallback((source: GenerateSourceType) => {
     setPickerSource(source);
@@ -527,69 +565,7 @@ export function HomeScreen({navigation}: Props) {
                 {greeting}
               </Text>
             </View>
-            <View className="flex-row items-center" style={{gap: 8}}>
-              <Pressable
-                onPress={openSettings}
-                hitSlop={6}
-                accessibilityRole="button"
-                accessibilityLabel="Notifications and settings"
-                className="active:opacity-80"
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 999,
-                  backgroundColor: brandColors.surface,
-                  borderWidth: 1,
-                  borderColor: brandColors.border,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                <MaterialIcons
-                  name="notifications-none"
-                  size={20}
-                  color={brandColors.charcoal}
-                />
-                {dueCount > 0 ? (
-                  <View
-                    style={{
-                      position: 'absolute',
-                      top: 9,
-                      right: 10,
-                      width: 8,
-                      height: 8,
-                      borderRadius: 4,
-                      backgroundColor: ACCENT_RED,
-                      borderWidth: 2,
-                      borderColor: brandColors.surface,
-                    }}
-                  />
-                ) : null}
-              </Pressable>
-              <Pressable
-                onPress={openProfile}
-                hitSlop={6}
-                accessibilityRole="button"
-                accessibilityLabel="Profile"
-                className="active:opacity-80"
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 999,
-                  borderWidth: 2,
-                  borderColor: brandColors.lime,
-                  overflow: 'hidden',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                <ProfileAvatar
-                  name={user?.name}
-                  email={user?.email}
-                  imageUrl={user?.avatarUrl}
-                  size={36}
-                  variant="brand"
-                />
-              </Pressable>
-            </View>
+            <HeaderProfileButton size={34} />
           </View>
           <Text
             style={{
@@ -734,58 +710,16 @@ export function HomeScreen({navigation}: Props) {
         ) : null}
 
         {!blockingError && decks.length === 0 ? (
-          <View
-            style={{
-              backgroundColor: brandColors.surface,
-              borderWidth: 1,
-              borderColor: brandColors.border,
-              borderRadius: radii.xl,
-              padding: 28,
-              gap: 12,
-              alignItems: 'center',
-            }}>
-            <View
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 32,
-                backgroundColor: brandColors.paleLime,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-              <MaterialIcons name="auto-awesome" size={28} color={brandColors.olive} />
-            </View>
-            <Text
-              style={{
-                fontFamily: fonts.displayMedium,
-                fontSize: 20,
-                color: brandColors.charcoal,
-                textAlign: 'center',
-              }}>
-              Welcome to Flipwise
-            </Text>
-            <Text
-              style={{
-                fontFamily: fonts.body,
-                fontSize: 14,
-                color: SUBTEXT,
-                textAlign: 'center',
-                lineHeight: 20,
-              }}>
-              Create a deck or generate cards with AI to start your daily review habit.
-            </Text>
-            <Button
-              label="Create your first deck"
-              className="mt-2 w-full"
-              onPress={openCreateDeck}
-            />
-            <Button
-              label="Try AI Creator"
-              variant="secondary"
-              className="w-full"
-              onPress={() => openDeckPicker('topic')}
-            />
-          </View>
+          <FirstRunEmpty
+            icon="auto-awesome"
+            title="Welcome to Cardweave"
+            body="Create a deck to start reviewing with spaced repetition."
+            primaryAction={{
+              label: 'Create deck',
+              onPress: openCreateDeck,
+              icon: 'add',
+            }}
+          />
         ) : null}
 
         {!blockingError && decks.length > 0 ? (
@@ -1031,218 +965,289 @@ export function HomeScreen({navigation}: Props) {
               </View>
             ) : null}
 
-            {/* Targeted Practice */}
-            {weakDecks.length > 0 ? (
+            {/* Practice Quiz — real decks, opens working quiz session */}
+            {quizDecks.length > 0 ? (
               <View>
-                <SectionHeader
-                  title="Targeted Practice"
-                  actionLabel="Smart Weak-Spot AI"
-                  mutedAction
-                />
+                <SectionHeader title="Practice Quiz" actionLabel="MCQ · Typed" mutedAction />
                 <View style={{gap: 12}}>
-                  {weakDecks.map(deck => {
-                    const hardCount = Math.max(
-                      deck.lateCount ?? 0,
-                      Math.min(deck.dueCount ?? 0, 6) || 1,
-                    );
+                  {quizDecks.map(({deck, mastery, due}, index) => {
+                    const isPrimary = index === 0;
                     return (
-                      <View
+                      <Pressable
                         key={deck.id}
+                        onPress={() => openQuiz(deck.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Start practice quiz for ${deck.title}`}
+                        className="active:opacity-95"
                         style={{
                           backgroundColor: brandColors.surface,
                           borderWidth: 1,
                           borderColor: brandColors.border,
                           borderRadius: 16,
                           padding: 16,
+                          gap: 12,
                           ...elevation.tier1,
                         }}>
-                        <View className="flex-row items-start justify-between">
-                          <View style={{flex: 1, paddingRight: 12, gap: 6}}>
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'flex-start',
+                            gap: 12,
+                          }}>
+                          <View
+                            style={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: 14,
+                              backgroundColor: isPrimary
+                                ? brandColors.lime
+                                : brandColors.progressTrack,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}>
+                            <MaterialIcons
+                              name="psychology"
+                              size={22}
+                              color={brandColors.charcoal}
+                            />
+                          </View>
+                          <View style={{flex: 1, gap: 4}}>
                             <View
                               style={{
-                                alignSelf: 'flex-start',
-                                backgroundColor: brandColors.dangerBg,
-                                borderRadius: 6,
-                                paddingHorizontal: 8,
-                                paddingVertical: 3,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 8,
+                                flexWrap: 'wrap',
                               }}>
                               <Text
                                 style={{
                                   fontFamily: fonts.bodyBold,
-                                  fontSize: 10,
-                                  color: ACCENT_RED,
-                                }}>
-                                ⚠️ {hardCount} cards missed recently
+                                  fontSize: 15,
+                                  color: brandColors.charcoal,
+                                }}
+                                numberOfLines={1}>
+                                {deck.title}
                               </Text>
+                              {isPrimary ? (
+                                <View
+                                  style={{
+                                    paddingHorizontal: 8,
+                                    paddingVertical: 2,
+                                    borderRadius: 999,
+                                    backgroundColor: brandColors.paleLime,
+                                  }}>
+                                  <Text
+                                    style={{
+                                      fontFamily: fonts.bodyBold,
+                                      fontSize: 10,
+                                      color: brandColors.olive,
+                                    }}>
+                                    Suggested
+                                  </Text>
+                                </View>
+                              ) : null}
                             </View>
                             <Text
                               style={{
-                                fontFamily: fonts.bodyBold,
-                                fontSize: 14,
-                                color: brandColors.charcoal,
-                              }}>
-                              {deck.title}
-                            </Text>
-                            <Text
-                              style={{
                                 fontFamily: fonts.bodyMedium,
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: SUBTEXT,
                               }}>
-                              {deck.subject?.trim()
-                                ? `Struggling with ${deck.subject.trim()}`
-                                : 'Difficult cards from recent reviews'}
-                            </Text>
-                          </View>
-                          <View
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 999,
-                              backgroundColor: brandColors.dangerBg,
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}>
-                            <Text
-                              style={{
-                                fontFamily: fonts.bodyBold,
-                                fontSize: 14,
-                                color: ACCENT_RED,
-                              }}>
-                              !
+                              {deck.cardCount} cards
+                              {due > 0 ? ` · ${due} due` : ''}
+                              {mastery > 0 ? ` · ${mastery}% mastery` : ''}
                             </Text>
                           </View>
                         </View>
-                        <Pressable
-                          onPress={() => openDeckReview(deck.id)}
-                          className="active:opacity-90 flex-row items-center justify-center"
+                        <View
                           style={{
-                            marginTop: 12,
-                            minHeight: 40,
+                            height: 44,
                             borderRadius: 12,
-                            borderWidth: 1,
-                            borderColor: brandColors.charcoal,
+                            backgroundColor: brandColors.lime,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                             gap: 6,
                           }}>
                           <MaterialIcons
-                            name="refresh"
-                            size={14}
+                            name="play-arrow"
+                            size={20}
                             color={brandColors.charcoal}
                           />
                           <Text
                             style={{
                               fontFamily: fonts.bodyBold,
-                              fontSize: 12,
+                              fontSize: 13,
                               color: brandColors.charcoal,
                             }}>
-                            Practice Difficult Cards ({hardCount})
+                            Start quiz
                           </Text>
-                        </Pressable>
-                      </View>
+                        </View>
+                      </Pressable>
                     );
                   })}
                 </View>
               </View>
             ) : null}
 
-            {/* Exam banner */}
+            {/* Exam planner */}
             {examDate && examDays != null ? (
-              <Pressable
-                onPress={() => navigation.navigate('StudyPlanner')}
-                accessibilityRole="button"
-                className="active:opacity-90"
+              <View
                 style={{
-                  backgroundColor: brandColors.olive,
+                  backgroundColor: brandColors.surface,
                   borderRadius: 16,
-                  paddingVertical: 14,
-                  paddingHorizontal: 14,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  ...elevation.tier1,
+                  borderWidth: 1.5,
+                  borderColor: brandColors.lime,
+                  padding: 16,
+                  gap: 12,
                 }}>
-                <View className="flex-row items-center flex-1" style={{gap: 12}}>
+                <Pressable
+                  onPress={() => navigation.navigate('StudyPlanner')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open exam planner"
+                  className="active:opacity-95"
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}>
                   <View
                     style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 12,
-                      backgroundColor: 'rgba(255,255,255,0.12)',
+                      width: 44,
+                      height: 44,
+                      borderRadius: 14,
+                      backgroundColor: brandColors.lime,
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}>
-                    <MaterialIcons name="event" size={20} color={brandColors.lime} />
+                    <MaterialIcons
+                      name="event"
+                      size={22}
+                      color={brandColors.charcoal}
+                    />
                   </View>
-                  <View style={{flex: 1}}>
-                    <View className="flex-row items-center" style={{gap: 8, flexWrap: 'wrap'}}>
+                  <View style={{flex: 1, gap: 4}}>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                        flexWrap: 'wrap',
+                      }}>
                       <Text
                         style={{
-                          fontFamily: fonts.display,
-                          fontSize: 12,
-                          letterSpacing: 0.3,
-                          color: brandColors.surface,
+                          fontFamily: fonts.bodyBold,
+                          fontSize: 15,
+                          color: brandColors.charcoal,
                         }}>
                         {examTitle}
                       </Text>
                       <View
                         style={{
-                          backgroundColor: brandColors.lime,
-                          borderRadius: 4,
-                          paddingHorizontal: 6,
+                          backgroundColor: brandColors.paleLime,
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: brandColors.lime,
+                          paddingHorizontal: 8,
                           paddingVertical: 2,
                         }}>
                         <Text
                           style={{
-                            fontFamily: fonts.display,
-                            fontSize: 9,
-                            letterSpacing: 0.4,
-                            color: brandColors.charcoal,
+                            fontFamily: fonts.bodyBold,
+                            fontSize: 10,
+                            letterSpacing: 0.3,
+                            color: brandColors.olive,
                             textTransform: 'uppercase',
                           }}>
                           {examDays <= 0
                             ? 'Today'
-                            : `In ${examDays} Day${examDays === 1 ? '' : 's'}`}
+                            : `In ${examDays} day${examDays === 1 ? '' : 's'}`}
                         </Text>
                       </View>
                     </View>
                     <Text
                       style={{
                         fontFamily: fonts.body,
-                        fontSize: 11,
-                        color: 'rgba(255,255,255,0.8)',
-                        marginTop: 2,
+                        fontSize: 12,
+                        color: SUBTEXT,
                       }}>
-                      {examPlanCards
-                        ? `Plan: ${examPlanCards} cards/day to be 100% prepared`
-                        : new Date(examDate).toLocaleDateString()}
+                      {[
+                        examPlanCards ? `${examPlanCards} cards/day` : null,
+                        examMinutes ? `${examMinutes} min/day` : null,
+                        examDeckLabel,
+                        examDueCount > 0 ? `${examDueCount} due` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </Text>
                   </View>
-                </View>
-                <Text
+                  <MaterialIcons
+                    name="edit"
+                    size={20}
+                    color={brandColors.muted}
+                  />
+                </Pressable>
+
+                <Pressable
+                  onPress={startExamReview}
+                  accessibilityRole="button"
+                  accessibilityLabel="Start today's exam review"
+                  className="active:opacity-95"
                   style={{
-                    fontFamily: fonts.bodyBold,
-                    fontSize: 12,
-                    color: brandColors.lime,
-                    textDecorationLine: 'underline',
-                    marginLeft: 8,
+                    minHeight: 44,
+                    borderRadius: 12,
+                    backgroundColor: brandColors.lime,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
                   }}>
-                  Plan
-                </Text>
-              </Pressable>
+                  <MaterialIcons
+                    name="play-arrow"
+                    size={20}
+                    color={brandColors.charcoal}
+                  />
+                  <Text
+                    style={{
+                      fontFamily: fonts.bodyBold,
+                      fontSize: 13,
+                      color: brandColors.charcoal,
+                    }}>
+                    {examDueCount > 0
+                      ? "Start today's exam review"
+                      : 'Open exam decks'}
+                  </Text>
+                </Pressable>
+              </View>
             ) : (
               <Pressable
                 onPress={() => navigation.navigate('StudyPlanner')}
                 accessibilityRole="button"
-                className="active:opacity-90 flex-row items-center"
+                accessibilityLabel="Set exam plan"
+                className="active:opacity-95 flex-row items-center"
                 style={{
                   borderRadius: 16,
-                  borderWidth: 1,
+                  borderWidth: 1.5,
                   borderColor: brandColors.border,
                   backgroundColor: brandColors.surface,
                   padding: 16,
                   gap: 14,
                 }}>
-                <MaterialIcons name="event" size={22} color={brandColors.charcoal} />
+                <View
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 14,
+                    backgroundColor: brandColors.progressTrack,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                  <MaterialIcons
+                    name="event"
+                    size={22}
+                    color={brandColors.charcoal}
+                  />
+                </View>
                 <View className="flex-1">
                   <Text
                     style={{
@@ -1259,7 +1264,7 @@ export function HomeScreen({navigation}: Props) {
                       color: SUBTEXT,
                       marginTop: 2,
                     }}>
-                    Add an exam date and daily minutes
+                    Pick a date, decks, and daily study minutes
                   </Text>
                 </View>
                 <MaterialIcons name="chevron-right" size={22} color={SUBTEXT} />

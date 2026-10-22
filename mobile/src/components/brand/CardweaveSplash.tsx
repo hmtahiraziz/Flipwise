@@ -39,12 +39,12 @@ const LOADER_BAR_WIDTH = LOADER_WIDTH * 0.42;
 const floatEasing = Easing.inOut(Easing.ease);
 const loaderEasing = Easing.bezier(0.4, 0, 0.2, 1);
 
-export function FlipwiseSplash() {
+export function CardweaveSplash() {
   return (
     <View
       style={{flex: 1, overflow: 'hidden', backgroundColor: splash.background}}
       accessibilityRole="progressbar"
-      accessibilityLabel="Loading Flipwise">
+      accessibilityLabel="Loading Cardweave">
       <StatusBar
         barStyle="dark-content"
         backgroundColor={splash.background}
@@ -74,7 +74,7 @@ export function FlipwiseSplash() {
                 color: splash.onSurface,
                 textAlign: 'center',
               }}>
-              Flipwise
+              Cardweave
             </Text>
             <Text
               style={{

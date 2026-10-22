@@ -68,7 +68,7 @@ export function OnboardingSlide({slide, index, scrollX}: OnboardingSlideProps) {
                   color: onboarding.onSurface,
                   textAlign: 'center',
                 }}>
-                Flipwise AI
+                Cardweave AI
               </Text>
             </View>
           ) : null}

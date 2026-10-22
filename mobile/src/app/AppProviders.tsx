@@ -4,10 +4,12 @@ import {StatusBar} from 'react-native';
 import {ClerkProvider, useAuth} from '@clerk/clerk-expo';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import {KeyboardProvider} from 'react-native-keyboard-controller';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {ClerkTokenBridge} from '../auth/ClerkTokenBridge';
 import {tokenCache} from '../auth/clerkTokenCache';
 import {ErrorBoundary} from '../components/ui/ErrorBoundary';
+import {AppAlertHost} from '../components/ui/AppAlert';
 import {AppToast} from '../components/ui/Toast';
 import {clerkPublishableKey, isClerkConfigured} from '../config/clerk';
 import {ConfigErrorScreen} from '../screens/auth/ConfigErrorScreen';
@@ -59,33 +61,38 @@ export function AppProviders({children}: AppProvidersProps) {
     return (
       <GestureHandlerRootView style={{flex: 1}}>
         <SafeAreaProvider>
-          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-          <ConfigErrorScreen />
+          <KeyboardProvider>
+            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+            <ConfigErrorScreen />
+          </KeyboardProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     );
   }
 
   return (
-    <ErrorBoundary title="Flipwise ran into a problem">
+    <ErrorBoundary title="Cardweave ran into a problem">
       <GestureHandlerRootView style={{flex: 1}}>
         <SafeAreaProvider>
-          {/*
-            Do NOT wrap the whole tree in ClerkLoaded/ClerkLoading.
-            Those previously rendered a blank white View forever when Clerk
-            hung — and blocked RootNavigator (and its logs) from mounting.
-          */}
-          <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
-            <ThemeProvider>
-              <StatusBar barStyle="dark-content" backgroundColor="#F7F8F4" />
-              <QueryClientProvider client={queryClient}>
-                <ClerkBootProbe />
-                <ClerkTokenBridge />
-                {children}
-                <AppToast />
-              </QueryClientProvider>
-            </ThemeProvider>
-          </ClerkProvider>
+          <KeyboardProvider>
+            {/*
+              Do NOT wrap the whole tree in ClerkLoaded/ClerkLoading.
+              Those previously rendered a blank white View forever when Clerk
+              hung — and blocked RootNavigator (and its logs) from mounting.
+            */}
+            <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
+              <ThemeProvider>
+                <StatusBar barStyle="dark-content" backgroundColor="#F7F8F4" />
+                <QueryClientProvider client={queryClient}>
+                  <ClerkBootProbe />
+                  <ClerkTokenBridge />
+                  {children}
+                  <AppToast />
+                  <AppAlertHost />
+                </QueryClientProvider>
+              </ThemeProvider>
+            </ClerkProvider>
+          </KeyboardProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>

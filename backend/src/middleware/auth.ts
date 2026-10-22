@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyToken } from "@clerk/backend";
-import { getEnv } from "../config/env";
+import { getClerkAuthorizedParties, getEnv } from "../config/env";
 import { AppError } from "./errorHandler";
 import { findOrCreateUserFromClerk } from "../services/user.service";
 
@@ -24,8 +24,10 @@ export async function authMiddleware(
   const token = header.slice(7);
 
   try {
+    const authorizedParties = getClerkAuthorizedParties();
     const payload = await verifyToken(token, {
       secretKey: getEnv().CLERK_SECRET_KEY,
+      ...(authorizedParties ? { authorizedParties } : {}),
     });
 
     const clerkUserId = payload.sub;
@@ -41,6 +43,10 @@ export async function authMiddleware(
     if (error instanceof AppError) {
       res.status(error.statusCode).json({ error: error.message });
       return;
+    }
+    if (process.env.NODE_ENV !== "production") {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn("[auth] verifyToken failed:", message);
     }
     res.status(401).json({ error: "Invalid or expired token" });
   }

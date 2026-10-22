@@ -19,12 +19,12 @@ export function useReviewQueue(deckId?: string) {
 export function useReviewMutations(deckId?: string) {
   const queryClient = useQueryClient();
 
-  const invalidateReviewData = async () => {
-    await queryClient.invalidateQueries({queryKey: reviewKeys.all});
-    await queryClient.invalidateQueries({queryKey: deckKeys.all});
-    await queryClient.invalidateQueries({queryKey: progressKeys.all});
+  const invalidateReviewData = () => {
+    void queryClient.invalidateQueries({queryKey: reviewKeys.all});
+    void queryClient.invalidateQueries({queryKey: deckKeys.all});
+    void queryClient.invalidateQueries({queryKey: progressKeys.all});
     if (deckId) {
-      await queryClient.invalidateQueries({queryKey: deckKeys.detail(deckId)});
+      void queryClient.invalidateQueries({queryKey: deckKeys.detail(deckId)});
     }
   };
 
@@ -38,8 +38,9 @@ export function useReviewMutations(deckId?: string) {
       rating: EaseRating;
       durationMs?: number;
     }) => rateCard(cardId, rating, durationMs),
-    onSuccess: async () => {
-      await invalidateReviewData();
+    // Fire-and-forget: do not await invalidation so the session never stalls.
+    onSuccess: () => {
+      invalidateReviewData();
     },
   });
 

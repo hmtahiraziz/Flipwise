@@ -2,12 +2,8 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {useForm} from 'react-hook-form';
 import {
-  ActionSheetIOS,
-  Alert,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
@@ -19,6 +15,7 @@ import {
   types,
 } from '@react-native-documents/picker';
 import * as ImagePicker from 'expo-image-picker';
+import {KeyboardAwareScrollView} from 'react-native-keyboard-controller';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {DeckDetailHeader} from '../../components/deck/DeckDetailHeader';
 import {
@@ -35,16 +32,24 @@ import {
   type CognitiveDensity,
   type ScanDensity,
 } from '../../components/generate';
-import {ProfileAvatar} from '../../components/profile/ProfileAvatar';
+import {HeaderProfileButton} from '../../components/profile/HeaderProfileButton';
+import {appAlert, showAppActionSheet} from '../../components/ui/AppAlert';
+import {keyboardScrollProps} from '../../components/ui/KeyboardSafeView';
 import {toast} from '../../components/ui/Toast';
 import {colors, fonts, brandColors} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
-import {useAppUser} from '../../hooks/useAppUser';
 import {useCardMutations} from '../../hooks/useCards';
 import {useDeck} from '../../hooks/useDecks';
-import {useProfileNavigation} from '../../hooks/useProfileNavigation';
 import {useScreenLayout} from '../../hooks/useScreenLayout';
-import {getApiErrorMessage, getGenerateErrorMessage} from '../../lib/errors';
+import {
+  ensureAiProcessingConsent,
+  setAiProcessingConsent,
+} from '../../lib/aiConsent';
+import {
+  getApiErrorMessage,
+  getGenerateErrorMessage,
+  getOcrErrorMessage,
+} from '../../lib/errors';
 import type {GenerateCardsFormValues} from '../../lib/schemas';
 import type {
   GenerateSourceType,
@@ -87,8 +92,59 @@ const LANGUAGE_LABELS: Record<string, string> = {
   'hi-IN': 'Hindi',
 };
 
-const TAB_CLEARANCE = 100;
-const FOOTER_CLEARANCE = 112;
+/** Extra scroll padding above the in-flow generate footer. */
+const FOOTER_SCROLL_PAD = 24;
+
+function normalizeScanAsset(asset: {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+}): {uri: string; name: string; type: string} | null {
+  const mime = (asset.mimeType ?? '').toLowerCase();
+  if (
+    mime.includes('heic') ||
+    mime.includes('heif') ||
+    (asset.fileName ?? '').toLowerCase().endsWith('.heic') ||
+    (asset.fileName ?? '').toLowerCase().endsWith('.heif')
+  ) {
+    toast.error(
+      'Unsupported photo format',
+      'Use JPEG or PNG. Retake with the camera, or pick a different photo.',
+    );
+    return null;
+  }
+
+  const safeType =
+    mime.startsWith('image/') && !mime.includes('heic') && !mime.includes('heif')
+      ? mime === 'image/jpg'
+        ? 'image/jpeg'
+        : mime
+      : 'image/jpeg';
+
+  const ext =
+    safeType === 'image/png'
+      ? 'png'
+      : safeType === 'image/webp'
+        ? 'webp'
+        : 'jpg';
+
+  return {
+    uri: asset.uri,
+    name: `scan-${Date.now()}.${ext}`,
+    type: safeType,
+  };
+}
+
+const scanPickerOptions: ImagePicker.ImagePickerOptions = {
+  mediaTypes: ['images'],
+  // Compress so Android camera/gallery uploads stay under OCR size limits.
+  quality: 0.75,
+  allowsEditing: false,
+  exif: false,
+  // Expo default is `.current` (keeps HEIC). Compatible forces a JPEG-friendly file.
+  preferredAssetRepresentationMode:
+    ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+};
 
 async function pickScanImage(
   source: 'gallery' | 'camera' = 'gallery',
@@ -100,52 +156,30 @@ async function pickScanImage(
         toast.error('Permission needed', 'Allow camera access to scan notes.');
         return null;
       }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        quality: 0.85,
-        allowsEditing: false,
-      });
+      const result = await ImagePicker.launchCameraAsync(scanPickerOptions);
       if (result.canceled || !result.assets?.[0]?.uri) {
         return null;
       }
-      const asset = result.assets[0];
-      return {
-        uri: asset.uri,
-        name: asset.fileName ?? `scan-${Date.now()}.jpg`,
-        type: asset.mimeType ?? 'image/jpeg',
-      };
+      return normalizeScanAsset(result.assets[0]);
     }
 
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      toast.error('Permission needed', 'Allow photo access to pick a scan.');
-      return null;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.85,
-      allowsEditing: false,
-    });
+    // Prefer the system photo picker — avoids READ_MEDIA_IMAGES on modern Android.
+    const result = await ImagePicker.launchImageLibraryAsync(scanPickerOptions);
     if (result.canceled || !result.assets?.[0]?.uri) {
       return null;
     }
-    const asset = result.assets[0];
-    return {
-      uri: asset.uri,
-      name: asset.fileName ?? 'scan.jpg',
-      type: asset.mimeType ?? 'image/jpeg',
-    };
+    return normalizeScanAsset(result.assets[0]);
   } catch {
     try {
       const [file] = await pick({
         type: [types.images],
         allowMultiSelection: false,
       });
-      return {
+      return normalizeScanAsset({
         uri: file.uri,
-        name: file.name ?? 'scan.jpg',
-        type: file.type ?? 'image/jpeg',
-      };
+        fileName: file.name,
+        mimeType: file.type,
+      });
     } catch (error) {
       if (isErrorWithCode(error) && error.code === errorCodes.OPERATION_CANCELED) {
         return null;
@@ -162,8 +196,6 @@ function languageDisplay(code: string): string {
 export function GenerateCardsScreen({navigation, route}: Props) {
   const {deckId, initialSource = 'topic'} = route.params;
   const layout = useScreenLayout(libraryTokens.contentMaxWidthWide);
-  const {user} = useAppUser();
-  const {openProfile} = useProfileNavigation();
   const {data: deck} = useDeck(deckId);
   const {generateCards, saveCardsBulk, importPdf, importUrl, importScanImage} =
     useCardMutations(deckId);
@@ -183,6 +215,7 @@ export function GenerateCardsScreen({navigation, route}: Props) {
     type: string;
   } | null>(null);
   const [ocrRunning, setOcrRunning] = useState(false);
+  const [ocrFailed, setOcrFailed] = useState(false);
   const [attachedFileName, setAttachedFileName] = useState<string | null>(null);
   const [cognitiveDensity, setCognitiveDensity] =
     useState<CognitiveDensity>('synthesis');
@@ -199,6 +232,9 @@ export function GenerateCardsScreen({navigation, route}: Props) {
   const [cardFormat, setCardFormat] = useState<CardFormat>('qa');
   const [language] = useState(() => preferencesStorage.get().language);
   const [inputFocused, setInputFocused] = useState(false);
+  const [aiConsentAccepted, setAiConsentAccepted] = useState(
+    () => preferencesStorage.get().aiProcessingConsent,
+  );
   const cancelledRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const notesInputRef = useRef<TextInput>(null);
@@ -231,14 +267,6 @@ export function GenerateCardsScreen({navigation, route}: Props) {
 
   useEffect(() => {
     setActiveSource(initialSource);
-    if (initialSource === 'notes' || initialSource === 'pdf') {
-      const timer = setTimeout(() => notesInputRef.current?.focus(), 300);
-      return () => clearTimeout(timer);
-    }
-    if (initialSource === 'scan') {
-      const timer = setTimeout(() => scanInputRef.current?.focus(), 300);
-      return () => clearTimeout(timer);
-    }
   }, [initialSource]);
 
   const sourceType = activeSource;
@@ -252,7 +280,8 @@ export function GenerateCardsScreen({navigation, route}: Props) {
 
   const count = watch('count');
   const tone = watch('tone');
-  const bottomPad = Math.max(layout.insets.bottom, 16) + TAB_CLEARANCE;
+  // GenerateCards hides the floating tab bar — only reserve home-indicator / nav inset.
+  const safeBottom = Math.max(layout.insets.bottom, Platform.OS === 'android' ? 12 : 8);
   const screenBg = {backgroundColor: libraryTokens.background};
   const notesMinHeight = layout.isCompact ? 168 : 192;
 
@@ -274,30 +303,7 @@ export function GenerateCardsScreen({navigation, route}: Props) {
     }
   };
 
-  const headerRight = (
-    <Pressable
-      onPress={openProfile}
-      hitSlop={8}
-      accessibilityLabel="Profile"
-      accessibilityRole="button"
-      className="active:opacity-80"
-      style={{
-        width: 40,
-        height: 40,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: libraryTokens.border,
-        overflow: 'hidden',
-        backgroundColor: colors.surfaceContainer,
-      }}>
-      <ProfileAvatar
-        name={user?.name}
-        email={user?.email}
-        imageUrl={user?.avatarUrl}
-        size={40}
-      />
-    </Pressable>
-  );
+  const headerRight = <HeaderProfileButton size={32} />;
 
   const resolveSource = (): {sourceType: 'topic' | 'notes'; content: string} => {
     if (sourceType === 'topic') {
@@ -342,9 +348,9 @@ export function GenerateCardsScreen({navigation, route}: Props) {
     }
     if (sourceType === 'scan') {
       const nextCount =
-        scanDensity === 'concise' ? 6 : scanDensity === 'deep' ? 20 : 14;
+        scanDensity === 'concise' ? 6 : scanDensity === 'deep' ? 16 : 12;
       const nextTone =
-        scanDensity === 'deep'
+        scanDensity === 'deep' || scanArchetypes.scenario
           ? ('detailed' as const)
           : ('concise' as const);
       const nextDifficulty: Difficulty =
@@ -355,7 +361,7 @@ export function GenerateCardsScreen({navigation, route}: Props) {
         tone: nextTone,
         difficulty: nextDifficulty,
         detailMode:
-          scanDensity === 'deep'
+          scanArchetypes.scenario || scanDensity === 'deep'
             ? ('examples' as const)
             : ('concise' as const),
         cardFormat: nextFormat,
@@ -370,31 +376,74 @@ export function GenerateCardsScreen({navigation, route}: Props) {
     };
   };
 
+  const toggleAiConsent = useCallback(() => {
+    setAiConsentAccepted(prev => {
+      const next = !prev;
+      setAiProcessingConsent(next);
+      return next;
+    });
+  }, []);
+
   const onGenerate = async () => {
     const params = resolveGenerateParams();
     setValue('count', params.count);
     setValue('tone', params.tone);
 
     const {sourceType: type, content} = resolveSource();
+    const MIN_TOPIC_CHARS = 3;
+    const MIN_NOTES_CHARS = 80; // matches backend llm.service notes floor
+
     if (!content) {
-      const message =
-        sourceType === 'topic'
-          ? 'Enter a topic to generate cards from.'
-          : sourceType === 'scan'
-            ? 'Paste or type extracted text from your scan to continue.'
-            : 'Paste your notes or attach a PDF.';
+      if (sourceType === 'topic') {
+        toast.error(
+          'Topic required',
+          'Type a subject or focus area (e.g. “Cell mitosis”) before generating.',
+        );
+      } else if (sourceType === 'scan') {
+        toast.error(
+          'No scan text yet',
+          scanImageUri
+            ? 'Tap Run OCR on your photo, or paste the extracted text below.'
+            : 'Take a photo or pick a gallery image, then run OCR.',
+        );
+      } else if (sourceType === 'pdf') {
+        toast.error(
+          'No PDF text yet',
+          attachedFileName
+            ? 'Import failed or text is empty — try another PDF or paste notes.'
+            : 'Upload a PDF (or paste notes) before generating cards.',
+        );
+      } else {
+        toast.error(
+          'Notes required',
+          'Paste study notes (at least a short paragraph) or switch to Topic.',
+        );
+      }
+      return;
+    }
+
+    if (type === 'topic' && content.length < MIN_TOPIC_CHARS) {
       toast.error(
-        sourceType === 'topic' ? 'Topic required' : 'Notes required',
-        message,
+        'Topic too short',
+        'Enter at least a few characters so AI knows what to cover.',
       );
       return;
     }
 
-    if (type === 'notes' && content.length < 150) {
+    if (type === 'notes' && content.length < MIN_NOTES_CHARS) {
       toast.error(
-        'Notes may be too short',
-        'Add more content for better flashcards, or switch to Topic mode.',
+        'Notes too short',
+        `Add at least ${MIN_NOTES_CHARS} characters for quality cards, or switch to Topic mode.`,
       );
+      return;
+    }
+
+    if (!aiConsentAccepted) {
+      const ok = await ensureAiProcessingConsent();
+      if (!ok) {
+        return;
+      }
+      setAiConsentAccepted(true);
     }
 
     abortRef.current?.abort();
@@ -452,6 +501,14 @@ export function GenerateCardsScreen({navigation, route}: Props) {
 
   const handlePdfImport = async () => {
     try {
+      if (!aiConsentAccepted) {
+        const ok = await ensureAiProcessingConsent();
+        if (!ok) {
+          return;
+        }
+        setAiConsentAccepted(true);
+      }
+
       const [file] = await pick({
         type: [types.pdf],
         allowMultiSelection: false,
@@ -462,15 +519,42 @@ export function GenerateCardsScreen({navigation, route}: Props) {
         name: file.name ?? 'document.pdf',
         type: file.type ?? 'application/pdf',
       });
-      setNotesText(result.content);
+      const extracted = result.content?.trim() ?? '';
+      if (!extracted) {
+        toast.error(
+          'No text in PDF',
+          'This file has no readable text. Try a text PDF, scan pages with Camera, or paste notes.',
+        );
+        return;
+      }
+      setNotesText(extracted);
       setAttachedFileName(file.name ?? 'document.pdf');
       setActiveSource(prev => (prev === 'pdf' ? 'pdf' : 'notes'));
-      toast.success('PDF imported', 'Text extracted into study notes.');
+      toast.success(
+        'PDF imported',
+        extracted.length < 150
+          ? 'Short extract — add more notes if cards look thin.'
+          : 'Text extracted into study notes.',
+      );
     } catch (error) {
       if (isErrorWithCode(error) && error.code === errorCodes.OPERATION_CANCELED) {
         return;
       }
-      toast.error('PDF import failed', getApiErrorMessage(error));
+      const msg = getApiErrorMessage(error);
+      const lower = msg.toLowerCase();
+      if (lower.includes('scanned') || lower.includes('ocr') || lower.includes('text layer')) {
+        toast.error(
+          'Scanned PDF',
+          'Allow AI processing and retry — we OCR the first pages of image-only PDFs.',
+        );
+      } else if (lower.includes('could not extract') || lower.includes('could not parse')) {
+        toast.error(
+          'PDF unreadable',
+          'Try another file, use Camera scan, or paste the text manually.',
+        );
+      } else {
+        toast.error('PDF import failed', msg);
+      }
     } finally {
       setImporting(false);
     }
@@ -501,34 +585,18 @@ export function GenerateCardsScreen({navigation, route}: Props) {
   };
 
   const openUploadOptions = () => {
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Upload PDF', 'Import from URL', 'Cancel'],
-          cancelButtonIndex: 2,
-        },
-        index => {
-          if (index === 0) void handlePdfImport();
-          if (index === 1) {
-            setShowUrlInput(true);
-            if (urlInput.trim()) void handleUrlImport();
-          }
-        },
-      );
-      return;
-    }
-
-    Alert.alert('Attach file', undefined, [
-      {text: 'Upload PDF', onPress: () => void handlePdfImport()},
-      {
-        text: 'Import from URL',
-        onPress: () => {
+    showAppActionSheet({
+      title: 'Attach file',
+      options: ['Upload PDF', 'Import from URL', 'Cancel'],
+      cancelButtonIndex: 2,
+      onPress: index => {
+        if (index === 0) void handlePdfImport();
+        if (index === 1) {
           setShowUrlInput(true);
           if (urlInput.trim()) void handleUrlImport();
-        },
+        }
       },
-      {text: 'Cancel', style: 'cancel'},
-    ]);
+    });
   };
 
   const runOcrOnImage = async (
@@ -536,17 +604,28 @@ export function GenerateCardsScreen({navigation, route}: Props) {
     name: string,
     type = 'image/jpeg',
   ) => {
+    if (!aiConsentAccepted) {
+      const ok = await ensureAiProcessingConsent();
+      if (!ok) {
+        return;
+      }
+      setAiConsentAccepted(true);
+    }
+
+    setOcrFailed(false);
     setOcrRunning(true);
     setImporting(true);
     try {
       const result = await importScanImage({uri, name, type});
       setScanText(result.content);
+      setOcrFailed(false);
       toast.success(
         'Text extracted',
         `${result.content.length.toLocaleString()} characters ready for cards.`,
       );
     } catch (error) {
-      toast.error('OCR failed', getApiErrorMessage(error));
+      setOcrFailed(true);
+      toast.error('Scan failed', getOcrErrorMessage(error));
     } finally {
       setOcrRunning(false);
       setImporting(false);
@@ -556,8 +635,12 @@ export function GenerateCardsScreen({navigation, route}: Props) {
   const handleCaptureOrPickScan = async (source: 'gallery' | 'camera') => {
     try {
       setImporting(true);
+      setOcrFailed(false);
       const picked = await pickScanImage(source);
-      if (!picked) return;
+      if (!picked) {
+        setImporting(false);
+        return;
+      }
       const name = picked.name ?? `scan-${Date.now()}.jpg`;
       const type = picked.type ?? 'image/jpeg';
       setScanImageUri(picked.uri);
@@ -566,34 +649,23 @@ export function GenerateCardsScreen({navigation, route}: Props) {
       setImporting(false);
       await runOcrOnImage(picked.uri, name, type);
     } catch (error) {
-      toast.error('Could not open scanner', getApiErrorMessage(error));
+      setOcrFailed(true);
+      toast.error('Could not open scanner', getOcrErrorMessage(error));
       setImporting(false);
     }
   };
 
   const handlePickScanImage = async () => {
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Take Photo', 'Choose from Gallery', 'Cancel'],
-          cancelButtonIndex: 2,
-        },
-        index => {
-          if (index === 0) void handleCaptureOrPickScan('camera');
-          if (index === 1) void handleCaptureOrPickScan('gallery');
-        },
-      );
-      return;
-    }
-
-    Alert.alert('Scan notes', 'Capture a page or pick from your gallery.', [
-      {text: 'Take Photo', onPress: () => void handleCaptureOrPickScan('camera')},
-      {
-        text: 'Choose from Gallery',
-        onPress: () => void handleCaptureOrPickScan('gallery'),
+    showAppActionSheet({
+      title: 'Scan notes',
+      message: 'Capture a page or pick from your gallery.',
+      options: ['Take Photo', 'Choose from Gallery', 'Cancel'],
+      cancelButtonIndex: 2,
+      onPress: index => {
+        if (index === 0) void handleCaptureOrPickScan('camera');
+        if (index === 1) void handleCaptureOrPickScan('gallery');
       },
-      {text: 'Cancel', style: 'cancel'},
-    ]);
+    });
   };
 
   const handleRunOcr = () => {
@@ -703,21 +775,21 @@ export function GenerateCardsScreen({navigation, route}: Props) {
   };
 
   const confirmDiscard = () => {
-    Alert.alert('Discard cards?', 'Your generated cards will be lost.', [
+    appAlert('Discard cards?', 'Your generated cards will be lost.', [
       {text: 'Keep editing', style: 'cancel'},
       {text: 'Discard', style: 'destructive', onPress: () => setPreview(null)},
     ]);
   };
 
   const confirmBackFromReview = () => {
-    Alert.alert('Leave review?', 'Generated cards will be lost.', [
+    appAlert('Leave review?', 'Generated cards will be lost.', [
       {text: 'Keep editing', style: 'cancel'},
       {text: 'Leave', style: 'destructive', onPress: () => setPreview(null)},
     ]);
   };
 
   const handleRegenerateBatch = () => {
-    Alert.alert(
+    appAlert(
       'Regenerate batch?',
       'Current cards will be replaced with a new AI generation.',
       [
@@ -739,7 +811,7 @@ export function GenerateCardsScreen({navigation, route}: Props) {
         preview={preview}
         deckTitle={deck?.title}
         saving={saving}
-        bottomPad={bottomPad}
+        bottomPad={safeBottom}
         compact={layout.isCompact || layout.isNarrow}
         headerRight={headerRight}
         onBack={confirmBackFromReview}
@@ -768,21 +840,20 @@ export function GenerateCardsScreen({navigation, route}: Props) {
         right={headerRight}
       />
 
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={layout.insets.top + 64}>
-        <ScrollView
+      <View className="flex-1" style={{flex: 1}}>
+        <KeyboardAwareScrollView
           className="flex-1"
+          bottomOffset={24}
+          {...keyboardScrollProps}
           contentContainerStyle={{
             paddingHorizontal: 16,
-            paddingBottom: bottomPad + FOOTER_CLEARANCE,
+            paddingTop: 8,
+            paddingBottom: FOOTER_SCROLL_PAD,
             maxWidth: libraryTokens.contentMaxWidthWide,
             width: '100%',
             alignSelf: 'center',
             gap: 16,
           }}
-          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <GenerateHeroSection
             compact={layout.isCompact}
@@ -934,6 +1005,7 @@ export function GenerateCardsScreen({navigation, route}: Props) {
                 onScanTextChange={setScanText}
                 importing={importing || ocrRunning}
                 ocrRunning={ocrRunning}
+                ocrFailed={ocrFailed}
                 density={scanDensity}
                 onDensityChange={setScanDensity}
                 archetypes={scanArchetypes}
@@ -941,14 +1013,13 @@ export function GenerateCardsScreen({navigation, route}: Props) {
                   setScanArchetypes(prev => ({...prev, [key]: !prev[key]}))
                 }
                 estimatedYield={estimatedCardsLabel}
-                onTakePhoto={() => void handleCaptureOrPickScan('camera')}
-                onPickGallery={() => void handleCaptureOrPickScan('gallery')}
                 onPickImage={() => void handlePickScanImage()}
                 onRunOcr={handleRunOcr}
                 onClear={() => {
                   setScanText('');
                   setScanImageUri(null);
                   setScanImageMeta(null);
+                  setOcrFailed(false);
                 }}
                 inputFocused={inputFocused}
                 onFocus={() => setInputFocused(true)}
@@ -1370,38 +1441,37 @@ export function GenerateCardsScreen({navigation, route}: Props) {
               examples for optimal spaced repetition recall.
             </Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
 
-      {!generating ? (
-        <View
-          className="absolute left-0 right-0"
-          style={{bottom: bottomPad}}
-          pointerEvents="box-none">
-          <GenerateScreenFooter
-            onGenerate={() => void onGenerate()}
-            onCancel={() => navigation.goBack()}
-            disabled={importing}
-            cardCount={
-              sourceType === 'pdf' || sourceType === 'scan'
-                ? resolveGenerateParams().count
-                : count
-            }
-            generateLabel={
-              sourceType === 'pdf'
-                ? 'Extract & Generate'
-                : sourceType === 'scan'
-                  ? 'Generate Cards'
-                  : undefined
-            }
-          />
-        </View>
-      ) : null}
+        {!generating ? (
+          <View style={{paddingBottom: safeBottom, backgroundColor: brandColors.surface}}>
+            <GenerateScreenFooter
+              onGenerate={() => void onGenerate()}
+              onCancel={() => navigation.goBack()}
+              disabled={importing}
+              aiConsentAccepted={aiConsentAccepted}
+              onToggleAiConsent={toggleAiConsent}
+              cardCount={
+                sourceType === 'pdf' || sourceType === 'scan'
+                  ? resolveGenerateParams().count
+                  : count
+              }
+              generateLabel={
+                sourceType === 'pdf'
+                  ? 'Extract & Generate'
+                  : sourceType === 'scan'
+                    ? 'Generate Cards'
+                    : undefined
+              }
+            />
+          </View>
+        ) : null}
+      </View>
 
       {generating ? (
         <GenerateLoadingOverlay
           onCancel={handleCancelGeneration}
-          bottomPad={bottomPad}
+          bottomPad={safeBottom}
         />
       ) : null}
     </View>

@@ -1,6 +1,6 @@
 import {createSafeMMKV} from './createSafeMMKV';
 
-const storage = createSafeMMKV('flipwise-local');
+const storage = createSafeMMKV('cardweave-local');
 
 const KEYS = {
   bookmarks: 'bookmarks_v1',
@@ -155,5 +155,16 @@ export const localDataStorage = {
       drafts[key] = value;
     }
     writeJson(KEYS.drafts, drafts);
+  },
+
+  /** Wipe all Cardweave local study caches (used after account deletion). */
+  clearAll() {
+    for (const key of Object.values(KEYS)) {
+      try {
+        storage.remove(key);
+      } catch {
+        writeJson(key, null);
+      }
+    }
   },
 };

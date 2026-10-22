@@ -1,6 +1,5 @@
 import {API_BASE_URL, isHttpsApiUrl, isLocalApiUrl} from './api';
 import {clerkPublishableKey, isClerkConfigured, isClerkProductionKey} from './clerk';
-import {PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL} from './app';
 
 export type ReleaseConfigResult = {
   /** Hard failures — app must not continue. */
@@ -12,6 +11,7 @@ export type ReleaseConfigResult = {
 /**
  * Validates env for store / release builds.
  * Does not throw — callers show ConfigErrorScreen when errors.length > 0.
+ * Privacy / Terms are in-app; Play Console privacy URL is set separately on your API host.
  */
 export function validateReleaseConfig(): ReleaseConfigResult {
   if (__DEV__) {
@@ -37,13 +37,6 @@ export function validateReleaseConfig(): ReleaseConfigResult {
     );
   } else if (!isHttpsApiUrl(API_BASE_URL)) {
     errors.push(`API_BASE_URL must use HTTPS in release (got ${API_BASE_URL}).`);
-  }
-
-  if (!PRIVACY_POLICY_URL.startsWith('https://')) {
-    errors.push(`Privacy policy URL must be HTTPS (got ${PRIVACY_POLICY_URL}).`);
-  }
-  if (!TERMS_OF_SERVICE_URL.startsWith('https://')) {
-    errors.push(`Terms URL must be HTTPS (got ${TERMS_OF_SERVICE_URL}).`);
   }
 
   return {errors, warnings};

@@ -10,12 +10,15 @@ export type WeeklyActivityDay = {
 
 type WeeklyActivityChartProps = {
   data: WeeklyActivityDay[];
+  /** Total study minutes across the same 7-day window (from history). */
+  minutesThisWeek?: number;
 };
 
 const CHART_HEIGHT = progressTokens.barChartHeight;
 const LABEL_HEIGHT = 18;
-const BAR_AREA = CHART_HEIGHT - LABEL_HEIGHT - 12;
-const MIN_BAR_RATIO = 0.1;
+const COUNT_HEIGHT = 16;
+const BAR_AREA = CHART_HEIGHT - LABEL_HEIGHT - COUNT_HEIGHT - 8;
+const MIN_BAR_RATIO = 0.08;
 
 function dayLabel(date: Date): string {
   return date
@@ -29,12 +32,16 @@ function barHeightPx(count: number, maxCount: number): number {
     return Math.round(BAR_AREA * MIN_BAR_RATIO);
   }
   const ratio = count / maxCount;
-  return Math.max(Math.round(ratio * BAR_AREA), Math.round(BAR_AREA * 0.18));
+  return Math.max(Math.round(ratio * BAR_AREA), Math.round(BAR_AREA * 0.16));
 }
 
-export function WeeklyActivityChart({data}: WeeklyActivityChartProps) {
+export function WeeklyActivityChart({
+  data,
+  minutesThisWeek,
+}: WeeklyActivityChartProps) {
   const chartData = data.length > 0 ? data.slice(-7) : mapActivityToWeeklyChart([]);
   const maxCount = Math.max(...chartData.map(d => d.count), 1);
+  const weekTotal = chartData.reduce((sum, d) => sum + d.count, 0);
 
   return (
     <View
@@ -43,17 +50,56 @@ export function WeeklyActivityChart({data}: WeeklyActivityChartProps) {
         borderWidth: 1,
         borderColor: progressTokens.borderWarm,
         borderRadius: progressTokens.cardRadius,
-        padding: 24,
+        padding: 20,
+        gap: 12,
       }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}>
+        <View style={{flex: 1}}>
+          <Text
+            style={{
+              fontFamily: fonts.bodySemiBold,
+              fontSize: 13,
+              color: progressTokens.mutedWarm,
+            }}>
+            Cards reviewed
+          </Text>
+          {typeof minutesThisWeek === 'number' ? (
+            <Text
+              style={{
+                fontFamily: fonts.body,
+                fontSize: 12,
+                color: progressTokens.mutedWarm,
+                marginTop: 2,
+              }}>
+              {minutesThisWeek} min studied
+            </Text>
+          ) : null}
+        </View>
+        <Text
+          style={{
+            fontFamily: fonts.display,
+            fontSize: 20,
+            color: progressTokens.ink,
+          }}>
+          {weekTotal}
+        </Text>
+      </View>
       <View
         style={{
           height: CHART_HEIGHT,
           flexDirection: 'row',
           alignItems: 'flex-end',
-          gap: 12,
+          gap: 10,
         }}>
         {chartData.map((entry, index) => {
           const heightPx = barHeightPx(entry.count, maxCount);
+          const active = entry.count > 0;
 
           return (
             <View
@@ -63,14 +109,29 @@ export function WeeklyActivityChart({data}: WeeklyActivityChartProps) {
                 height: CHART_HEIGHT,
                 alignItems: 'center',
                 justifyContent: 'flex-end',
-                gap: 12,
+                gap: 6,
               }}>
+              <Text
+                style={{
+                  fontFamily: fonts.bodyBold,
+                  fontSize: 10,
+                  lineHeight: COUNT_HEIGHT,
+                  color: active ? progressTokens.ink : progressTokens.mutedWarm,
+                  opacity: active ? 1 : 0.5,
+                }}>
+                {entry.count > 0 ? entry.count : '·'}
+              </Text>
               <View
                 style={{
                   width: '100%',
                   height: heightPx,
                   borderRadius: 999,
-                  backgroundColor: progressTokens.brandGreen,
+                  backgroundColor: entry.isToday
+                    ? progressTokens.brandGreen
+                    : active
+                      ? progressTokens.brandGreen
+                      : progressTokens.borderWarm,
+                  opacity: entry.isToday ? 1 : active ? 0.75 : 1,
                 }}
               />
               <Text

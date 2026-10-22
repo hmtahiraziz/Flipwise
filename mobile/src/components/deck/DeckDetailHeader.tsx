@@ -13,6 +13,8 @@ type DeckDetailHeaderProps = {
   right?: ReactNode;
   titleColor?: string;
   backIconColor?: string;
+  /** Default true. Set false on Edit deck for a flat bar. */
+  bordered?: boolean;
 };
 
 export function DeckDetailHeader({
@@ -21,6 +23,7 @@ export function DeckDetailHeader({
   right,
   titleColor = libraryTokens.primary,
   backIconColor,
+  bordered = true,
 }: DeckDetailHeaderProps) {
   const insets = useSafeAreaInsets();
 
@@ -29,7 +32,7 @@ export function DeckDetailHeader({
       fallbackOpacity={0.96}
       style={{
         paddingTop: insets.top,
-        borderBottomWidth: 1,
+        borderBottomWidth: bordered ? 1 : 0,
         borderBottomColor: libraryTokens.border,
         backgroundColor: `${libraryTokens.surface}F2`,
       }}>

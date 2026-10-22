@@ -1,5 +1,5 @@
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {useCallback, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,10 +16,10 @@ import {fonts} from '../../config/theme';
 import {useCards} from '../../hooks/useCards';
 import {useDeck} from '../../hooks/useDecks';
 import {useScreenLayout} from '../../hooks/useScreenLayout';
-import type {ProgressStackParamList} from '../../navigation/types';
+import type {HomeStackParamList} from '../../navigation/types';
 import type {Flashcard} from '../../types/api';
 
-type Props = NativeStackScreenProps<ProgressStackParamList, 'QuizSession'>;
+type Props = NativeStackScreenProps<HomeStackParamList, 'QuizSession'>;
 
 type QuizMode = 'mcq' | 'typed';
 type Phase = 'ready' | 'active' | 'results';
@@ -34,14 +34,24 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 function normalize(text: string): string {
-  return text.trim().toLowerCase().replace(/\s+/g, ' ');
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ');
 }
 
 function buildChoices(card: Flashcard, pool: Flashcard[]): string[] {
-  const distractors = shuffle(
-    pool.filter(c => c.id !== card.id).map(c => c.answer),
-  ).slice(0, 3);
-  return shuffle([card.answer, ...distractors]);
+  const answers: string[] = [card.answer];
+  const seen = new Set([normalize(card.answer)]);
+  for (const candidate of shuffle(pool.filter(c => c.id !== card.id))) {
+    const key = normalize(candidate.answer);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    answers.push(candidate.answer);
+    if (answers.length >= 4) break;
+  }
+  return shuffle(answers);
 }
 
 const CHOICE_LETTERS = ['A', 'B', 'C', 'D'] as const;
@@ -66,14 +76,28 @@ export function QuizSessionScreen({navigation, route}: Props) {
   const [finishedAt, setFinishedAt] = useState(0);
 
   const deckTitle = deck?.title?.trim() || 'Practice Quiz';
+  const mcqAvailable = cards.length >= 2;
   const maxAvailable = Math.min(20, cards.length);
   const countOptions = useMemo(() => {
     const opts = [5, 10, 15, 20].filter(n => n <= maxAvailable);
-    if (maxAvailable >= 2 && !opts.includes(maxAvailable) && maxAvailable < 5) {
+    if (maxAvailable >= 1 && !opts.includes(maxAvailable) && maxAvailable < 5) {
       return [maxAvailable];
     }
-    return opts.length ? opts : maxAvailable >= 2 ? [maxAvailable] : [];
+    return opts.length ? opts : maxAvailable >= 1 ? [maxAvailable] : [];
   }, [maxAvailable]);
+
+  useEffect(() => {
+    if (!mcqAvailable && mode === 'mcq') {
+      setMode('typed');
+    }
+  }, [mcqAvailable, mode]);
+
+  useEffect(() => {
+    if (countOptions.length === 0) return;
+    if (!countOptions.includes(questionCount)) {
+      setQuestionCount(countOptions[countOptions.length - 1] ?? cards.length);
+    }
+  }, [countOptions, questionCount, cards.length]);
 
   const current = quizCards[index];
   const choices = useMemo(
@@ -85,7 +109,10 @@ export function QuizSessionScreen({navigation, route}: Props) {
     quizCards.length > 0 ? (index + (revealed ? 1 : 0)) / quizCards.length : 0;
 
   const startQuiz = useCallback(() => {
-    const size = Math.min(questionCount, cards.length);
+    if (cards.length < 1) return;
+    const activeMode: QuizMode = mode === 'mcq' && cards.length < 2 ? 'typed' : mode;
+    if (activeMode !== mode) setMode(activeMode);
+    const size = Math.min(Math.max(1, questionCount), cards.length);
     const selectedCards = shuffle(cards).slice(0, size);
     setQuizCards(selectedCards);
     setIndex(0);
@@ -96,7 +123,7 @@ export function QuizSessionScreen({navigation, route}: Props) {
     setStartedAt(Date.now());
     setFinishedAt(0);
     setPhase('active');
-  }, [cards, questionCount]);
+  }, [cards, questionCount, mode]);
 
   const submitAnswer = useCallback(
     (answer: string) => {
@@ -230,7 +257,7 @@ export function QuizSessionScreen({navigation, route}: Props) {
     );
   }
 
-  if (cards.length < 2) {
+  if (cards.length < 1) {
     return (
       <View style={{flex: 1, backgroundColor: quizTokens.background}}>
         {header}
@@ -259,7 +286,7 @@ export function QuizSessionScreen({navigation, route}: Props) {
               fontSize: 24,
               color: quizTokens.ink,
             }}>
-            Not enough cards
+            No cards yet
           </Text>
           <Text
             style={{
@@ -268,7 +295,7 @@ export function QuizSessionScreen({navigation, route}: Props) {
               lineHeight: 20,
               color: quizTokens.muted,
             }}>
-            Add at least 2 cards to this deck to unlock multiple-choice practice.
+            Add cards to this deck, then come back to start a practice quiz.
           </Text>
           <Pressable
             onPress={() => navigation.goBack()}
@@ -627,10 +654,15 @@ export function QuizSessionScreen({navigation, route}: Props) {
                 ] as const
               ).map(option => {
                 const selectedMode = mode === option.value;
+                const disabled = option.value === 'mcq' && !mcqAvailable;
                 return (
                   <Pressable
                     key={option.value}
-                    onPress={() => setMode(option.value)}
+                    onPress={() => {
+                      if (!disabled) setMode(option.value);
+                    }}
+                    disabled={disabled}
+                    accessibilityState={{disabled, selected: selectedMode}}
                     className="active:opacity-90"
                     style={{
                       flex: 1,
@@ -640,6 +672,7 @@ export function QuizSessionScreen({navigation, route}: Props) {
                       gap: 6,
                       paddingVertical: 12,
                       borderRadius: 12,
+                      opacity: disabled ? 0.45 : 1,
                       backgroundColor: selectedMode
                         ? quizTokens.surface
                         : 'transparent',

@@ -72,7 +72,7 @@ export function SyllabusImportCard({
                 color: brandColors.olive,
                 marginTop: 2,
               }}>
-              Import a PDF, scan notes, or prompt Flipwise AI
+              Import a PDF, scan notes, or prompt Cardweave AI
             </Text>
             <Pressable
               onPress={onPasteText}

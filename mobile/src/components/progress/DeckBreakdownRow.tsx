@@ -1,5 +1,5 @@
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import {Text, View} from 'react-native';
+import {Pressable, Text, View} from 'react-native';
 import {fonts} from '../../config/theme';
 import {progressTokens} from '../../config/progressTokens';
 
@@ -7,12 +7,22 @@ type DeckBreakdownRowProps = {
   icon: string;
   name: string;
   masteryPercent: number;
+  dueCount?: number;
+  cardCount?: number;
+  onPress?: () => void;
 };
 
-export function DeckBreakdownRow({icon, name, masteryPercent}: DeckBreakdownRowProps) {
+export function DeckBreakdownRow({
+  icon,
+  name,
+  masteryPercent,
+  dueCount = 0,
+  cardCount,
+  onPress,
+}: DeckBreakdownRowProps) {
   const clampedMastery = Math.min(100, Math.max(0, masteryPercent));
 
-  return (
+  const content = (
     <View
       className="flex-row items-center"
       style={{
@@ -53,7 +63,9 @@ export function DeckBreakdownRow({icon, name, masteryPercent}: DeckBreakdownRowP
               color: progressTokens.mutedWarm,
               marginTop: 2,
             }}>
-            {clampedMastery}% Mastered
+            {clampedMastery}% mastered
+            {typeof cardCount === 'number' ? ` · ${cardCount} cards` : ''}
+            {dueCount > 0 ? ` · ${dueCount} due` : ''}
           </Text>
         </View>
       </View>
@@ -78,4 +90,14 @@ export function DeckBreakdownRow({icon, name, masteryPercent}: DeckBreakdownRowP
       </View>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} accessibilityRole="button" className="active:opacity-90">
+        {content}
+      </Pressable>
+    );
+  }
+
+  return content;
 }

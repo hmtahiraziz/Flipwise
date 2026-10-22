@@ -1,30 +1,30 @@
 /** Expo config — embedded at native build time via expo-constants. */
 module.exports = {
-  name: 'Flipwise',
-  slug: 'flipwise',
-  scheme: 'flipwise',
+  name: 'Cardweave',
+  slug: 'cardweave',
+  scheme: 'cardweave',
   version: '1.0.0',
   android: {
-    package: 'com.flipwise.app',
-    permissions: ['CAMERA', 'READ_MEDIA_IMAGES'],
+    package: 'com.cardweave.app',
+    // CAMERA only — gallery uses the system photo picker (no READ_MEDIA_IMAGES).
+    permissions: ['CAMERA'],
   },
   ios: {
-    bundleIdentifier: 'com.flipwise.app',
+    bundleIdentifier: 'com.cardweave.app',
     infoPlist: {
       NSCameraUsageDescription:
-        'Flipwise uses the camera to scan handwritten or printed study notes.',
-      NSPhotoLibraryUsageDescription:
-        'Flipwise accesses your photos so you can import scanned notes.',
+        'Cardweave uses the camera to scan handwritten or printed study notes and for optional profile photos.',
     },
   },
   plugins: [
     [
       'expo-image-picker',
       {
-        photosPermission:
-          'Allow Flipwise to access your photos for note scanning.',
+        // false = do not add READ_MEDIA_IMAGES / photo-library usage strings.
+        // launchImageLibraryAsync uses the system picker without broad access.
+        photosPermission: false,
         cameraPermission:
-          'Allow Flipwise to use your camera to scan study notes.',
+          'Allow Cardweave to use your camera to scan study notes or take a profile photo.',
       },
     ],
   ],

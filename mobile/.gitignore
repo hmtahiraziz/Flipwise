@@ -49,9 +49,6 @@ yarn-error.log
 .env.production
 .env.*.local
 
-# Local publish notes (keep out of VCS if preferred)
-docs/PLAY_STORE.md
-
 # fastlane
 #
 # It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
@@ -62,6 +59,10 @@ docs/PLAY_STORE.md
 **/fastlane/report.xml
 **/fastlane/Preview.html
 **/fastlane/screenshots
+
+# Optional: ignore oversized raw graphic sources (keep feature-graphic.png + phone-*.jpg)
+# store/*-source.jpg
+
 **/fastlane/test_output
 
 # Bundle artifact

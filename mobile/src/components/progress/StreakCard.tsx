@@ -5,25 +5,34 @@ import {progressTokens} from '../../config/progressTokens';
 
 type StreakCardProps = {
   streakDays: number;
+  longestStreak?: number;
   message: string;
 };
 
-export function StreakCard({streakDays, message}: StreakCardProps) {
+export function StreakCard({
+  streakDays,
+  longestStreak,
+  message,
+}: StreakCardProps) {
+  const best = Math.max(longestStreak ?? 0, streakDays);
+
   return (
     <View
       className="flex-row items-center"
       style={{
-        backgroundColor: progressTokens.surfaceWarm,
+        backgroundColor: progressTokens.background,
         borderRadius: progressTokens.cardRadius,
-        padding: 24,
-        gap: 24,
+        borderWidth: 1,
+        borderColor: progressTokens.borderWarm,
+        padding: 20,
+        gap: 18,
       }}>
       <View
         className="items-center justify-center shrink-0"
         style={{
           width: 64,
           height: 64,
-          borderRadius: 32,
+          borderRadius: 20,
           backgroundColor: progressTokens.brandGreen,
         }}>
         <MaterialIcons
@@ -33,21 +42,40 @@ export function StreakCard({streakDays, message}: StreakCardProps) {
         />
       </View>
       <View className="flex-1 min-w-0">
-        <Text
+        <View
           style={{
-            fontFamily: fonts.display,
-            fontSize: 24,
-            lineHeight: 32,
-            letterSpacing: -0.48,
-            color: progressTokens.ink,
+            flexDirection: 'row',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            gap: 8,
           }}>
-          {streakDays} day streak
-        </Text>
+          <Text
+            style={{
+              fontFamily: fonts.display,
+              fontSize: 24,
+              lineHeight: 32,
+              letterSpacing: -0.48,
+              color: progressTokens.ink,
+              flexShrink: 1,
+            }}>
+            {streakDays} day streak
+          </Text>
+          {best > 0 ? (
+            <Text
+              style={{
+                fontFamily: fonts.bodySemiBold,
+                fontSize: 12,
+                color: progressTokens.mutedWarm,
+              }}>
+              Best {best}
+            </Text>
+          ) : null}
+        </View>
         <Text
           style={{
             fontFamily: fonts.body,
-            fontSize: 16,
-            lineHeight: 22,
+            fontSize: 14,
+            lineHeight: 20,
             color: progressTokens.mutedWarm,
             marginTop: 4,
           }}>

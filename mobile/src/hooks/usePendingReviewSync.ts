@@ -38,7 +38,8 @@ export function usePendingReviewSync() {
 
       for (const item of pending) {
         try {
-          await rateCard(item.cardId, item.rating, item.durationMs);
+          // Reuse queued id as idempotency key so retries never double-advance SM-2.
+          await rateCard(item.cardId, item.rating, item.durationMs, item.id);
           syncedAny = true;
         } catch (error) {
           if (isNetworkError(error)) {

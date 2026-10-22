@@ -1,3 +1,5 @@
+import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
+import {useNavigation} from '@react-navigation/native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useCallback, useMemo} from 'react';
 import {
@@ -8,22 +10,21 @@ import {
   View,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import {
-  LibraryProfileButton,
-  LibrarySettingsButton,
-} from '../../components/library/LibraryHeader';
 import {LibraryTopBar} from '../../components/library/LibraryTopBar';
-import {ProfileAvatar} from '../../components/profile/ProfileAvatar';
+import {HeaderProfileButton} from '../../components/profile/HeaderProfileButton';
+import {FirstRunEmpty} from '../../components/ui/FirstRunEmpty';
 import {SkeletonCard} from '../../components/ui/Skeleton';
 import {brandColors, fonts} from '../../config/theme';
 import {libraryTokens} from '../../config/libraryTokens';
 import {getApiErrorMessage} from '../../lib/errors';
-import {useAppUser} from '../../hooks/useAppUser';
+import {useDecks} from '../../hooks/useDecks';
 import {useLibraryLayout} from '../../hooks/useLibraryLayout';
-import {useProfileNavigation} from '../../hooks/useProfileNavigation';
 import {useProgressSummary} from '../../hooks/useProgress';
 import {useReviewQueue} from '../../hooks/useReviews';
-import type {ReviewStackParamList} from '../../navigation/types';
+import type {
+  MainTabParamList,
+  ReviewStackParamList,
+} from '../../navigation/types';
 import type {ReviewQueueItem} from '../../types/api';
 
 type Props = NativeStackScreenProps<ReviewStackParamList, 'ReviewHome'>;
@@ -67,10 +68,10 @@ function groupQueueByDeck(queue: ReviewQueueItem[]): DeckSummary[] {
 
 export function ReviewHomeScreen({navigation}: Props) {
   const layout = useLibraryLayout();
-  const {user} = useAppUser();
-  const {openProfile, openSettings} = useProfileNavigation();
+  const tabNav = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const {data: queue = [], isLoading, isRefetching, refetch, error} =
     useReviewQueue();
+  const {data: decks = [], isLoading: decksLoading} = useDecks();
   const {data: summary} = useProgressSummary();
 
   const deckBreakdown = useMemo(() => groupQueueByDeck(queue), [queue]);
@@ -79,6 +80,7 @@ export function ReviewHomeScreen({navigation}: Props) {
   const dueToday = summary?.dueTodayCount ?? totalDue;
   const streak = summary?.currentStreak ?? 0;
   const reviewedToday = summary?.reviewedTodayCount ?? 0;
+  const isFirstRun = !decksLoading && decks.length === 0;
 
   const onRefresh = useCallback(() => {
     void refetch();
@@ -98,18 +100,7 @@ export function ReviewHomeScreen({navigation}: Props) {
   const topBar = (
     <LibraryTopBar
       title="Review"
-      left={<LibrarySettingsButton onPress={openSettings} />}
-      right={
-        <LibraryProfileButton onPress={openProfile}>
-          <ProfileAvatar
-            name={user?.name}
-            email={user?.email}
-            imageUrl={user?.avatarUrl}
-            size={32}
-            variant="brand"
-          />
-        </LibraryProfileButton>
-      }
+      right={<HeaderProfileButton size={32} />}
     />
   );
 
@@ -117,11 +108,27 @@ export function ReviewHomeScreen({navigation}: Props) {
     <View className="flex-1" style={{backgroundColor: libraryTokens.background}}>
       {topBar}
 
-      {isLoading ? (
+      {isLoading || decksLoading ? (
         <View style={{paddingHorizontal: layout.horizontalPadding, paddingTop: 16, gap: 12}}>
           <SkeletonCard lines={2} showBadge={false} />
           <SkeletonCard lines={2} />
           <SkeletonCard lines={2} />
+        </View>
+      ) : isFirstRun ? (
+        <View
+          style={{
+            paddingHorizontal: layout.horizontalPadding,
+            paddingTop: 24,
+            paddingBottom: layout.tabScrollBottomPadding + 24,
+            maxWidth: libraryTokens.contentMaxWidthWide,
+            width: '100%',
+            alignSelf: 'center',
+          }}>
+          <FirstRunEmpty
+            icon="style"
+            title="Nothing to review yet"
+            body="Create a deck in Library or Home first — due cards will show up here."
+          />
         </View>
       ) : error ? (
         <View style={{paddingHorizontal: layout.horizontalPadding, paddingTop: 24}}>
@@ -341,50 +348,16 @@ export function ReviewHomeScreen({navigation}: Props) {
             </View>
           }
           ListEmptyComponent={
-            <View
-              style={{
-                alignItems: 'center',
-                paddingVertical: 48,
-                paddingHorizontal: 24,
-                gap: 12,
-              }}>
-              <View
-                style={{
-                  width: 72,
-                  height: 72,
-                  borderRadius: 999,
-                  backgroundColor: brandColors.surface,
-                  borderWidth: 1,
-                  borderColor: libraryTokens.border,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                <MaterialIcons
-                  name="celebration"
-                  size={36}
-                  color={libraryTokens.primaryContainer}
-                />
-              </View>
-              <Text
-                style={{
-                  fontFamily: fonts.displaySemiBold,
-                  fontSize: 20,
-                  color: libraryTokens.ink,
-                  textAlign: 'center',
-                }}>
-                Inbox zero
-              </Text>
-              <Text
-                style={{
-                  fontFamily: fonts.body,
-                  fontSize: 14,
-                  lineHeight: 20,
-                  color: libraryTokens.muted,
-                  textAlign: 'center',
-                }}>
-                Check back later or add more cards to your decks to keep learning.
-              </Text>
-            </View>
+            <FirstRunEmpty
+              icon="celebration"
+              title="Inbox zero"
+              body="You're caught up. Check back later or add more cards."
+              primaryAction={{
+                label: 'Browse library',
+                onPress: () => tabNav.navigate('Library'),
+                icon: 'folder-open',
+              }}
+            />
           }
           renderItem={({item}) => (
             <Pressable

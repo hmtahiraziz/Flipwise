@@ -7,22 +7,11 @@ import {
   studySessions,
   userStreaks,
 } from "../db/schema";
-
-function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDays(dateStr: string, days: number): string {
-  const date = new Date(`${dateStr}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function daysBetween(from: string, to: string): number {
-  const start = new Date(`${from}T00:00:00.000Z`).getTime();
-  const end = new Date(`${to}T00:00:00.000Z`).getTime();
-  return Math.round((end - start) / (1000 * 60 * 60 * 24));
-}
+import {
+  addCalendarDays,
+  calendarDateInTimeZone,
+  calendarDaysBetween,
+} from "../utils/dates";
 
 export type ProgressSummary = {
   dueTodayCount: number;
@@ -44,11 +33,12 @@ export type ProgressHistoryDay = {
 export async function recordStudyActivity(
   userId: string,
   minutesStudied = 0,
+  timeZone?: string,
 ): Promise<void> {
   const db = getDb();
-  const today = todayDateString();
+  const today = calendarDateInTimeZone(timeZone);
   const minutesIncrement = Number.isFinite(minutesStudied)
-    ? Math.max(0, Math.round(minutesStudied))
+    ? Math.max(0, Math.min(5, Math.round(minutesStudied)))
     : 0;
 
   await db
@@ -68,7 +58,12 @@ export async function recordStudyActivity(
     });
 
   const [streak] = await db
-    .select()
+    .select({
+      userId: userStreaks.userId,
+      currentStreak: userStreaks.currentStreak,
+      longestStreak: userStreaks.longestStreak,
+      lastStudyDate: userStreaks.lastStudyDate,
+    })
     .from(userStreaks)
     .where(eq(userStreaks.userId, userId))
     .limit(1);
@@ -89,7 +84,7 @@ export async function recordStudyActivity(
 
   let nextStreak = 1;
   if (streak.lastStudyDate) {
-    const gap = daysBetween(streak.lastStudyDate, today);
+    const gap = calendarDaysBetween(streak.lastStudyDate, today);
     if (gap === 1) {
       nextStreak = streak.currentStreak + 1;
     }
@@ -109,18 +104,19 @@ export async function recordStudyActivity(
 
 export async function getProgressSummaryForUser(
   userId: string,
+  timeZone?: string,
 ): Promise<ProgressSummary> {
   const db = getDb();
-  const today = todayDateString();
-  const tomorrow = addDays(today, 1);
-  const sevenDaysAgo = addDays(today, -6);
+  const today = calendarDateInTimeZone(timeZone);
+  const tomorrow = addCalendarDays(today, 1);
+  const sevenDaysAgo = addCalendarDays(today, -6);
 
   const [dueStats] = await db
     .select({
-      dueTodayCount: sql<number>`cast(count(distinct case when ${cardReviews.nextReviewDate} = current_date then ${cardReviews.id} end) as int)`.mapWith(
+      dueTodayCount: sql<number>`cast(count(distinct case when ${cardReviews.nextReviewDate} = ${today}::date then ${cardReviews.id} end) as int)`.mapWith(
         Number,
       ),
-      lateCount: sql<number>`cast(count(distinct case when ${cardReviews.nextReviewDate} < current_date then ${cardReviews.id} end) as int)`.mapWith(
+      lateCount: sql<number>`cast(count(distinct case when ${cardReviews.nextReviewDate} < ${today}::date then ${cardReviews.id} end) as int)`.mapWith(
         Number,
       ),
       dueTomorrowCount: sql<number>`cast(count(distinct case when ${cardReviews.nextReviewDate} = ${tomorrow}::date then ${cardReviews.id} end) as int)`.mapWith(
@@ -179,7 +175,7 @@ export async function getProgressSummaryForUser(
   const activityLast7Days: ProgressSummary["activityLast7Days"] = [];
   let reviewedThisWeekCount = 0;
   for (let i = 0; i < 7; i += 1) {
-    const date = addDays(sevenDaysAgo, i);
+    const date = addCalendarDays(sevenDaysAgo, i);
     const count = activityMap.get(date) ?? 0;
     reviewedThisWeekCount += count;
     activityLast7Days.push({
@@ -203,10 +199,11 @@ export async function getProgressSummaryForUser(
 export async function getProgressHistoryForUser(
   userId: string,
   days: number,
+  timeZone?: string,
 ): Promise<ProgressHistoryDay[]> {
   const db = getDb();
-  const today = todayDateString();
-  const startDate = addDays(today, -(days - 1));
+  const today = calendarDateInTimeZone(timeZone);
+  const startDate = addCalendarDays(today, -(days - 1));
 
   const rows = await db
     .select({
@@ -235,7 +232,7 @@ export async function getProgressHistoryForUser(
 
   const history: ProgressHistoryDay[] = [];
   for (let i = 0; i < days; i += 1) {
-    const date = addDays(startDate, i);
+    const date = addCalendarDays(startDate, i);
     const entry = rowMap.get(date);
     history.push({
       date,

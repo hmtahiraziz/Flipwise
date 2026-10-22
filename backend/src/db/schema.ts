@@ -114,3 +114,74 @@ export const cardReviews = pgTable("card_reviews", {
   nextReviewDate: date("next_review_date").notNull(),
   lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
 });
+
+/** Idempotent review submissions (client-provided key per rate action). */
+export const reviewIdempotency = pgTable(
+  "review_idempotency",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    flashcardId: uuid("flashcard_id").notNull(),
+    responseJson: text("response_json").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("review_idempotency_user_key").on(
+      table.userId,
+      table.idempotencyKey,
+    ),
+  ],
+);
+
+/** Idempotency ledger for inbound webhooks (e.g. Svix message id). */
+export const webhookEvents = pgTable("webhook_events", {
+  id: text("id").primaryKey(),
+  source: text("source").notNull(),
+  eventType: text("event_type").notNull(),
+  processedAt: timestamp("processed_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/** Per-user daily AI usage counters (UTC calendar day). */
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    usageDate: date("usage_date").notNull(),
+    generateCount: integer("generate_count").notNull().default(0),
+    explainCount: integer("explain_count").notNull().default(0),
+    ocrCount: integer("ocr_count").notNull().default(0),
+  },
+  (table) => [
+    unique("ai_usage_user_date").on(table.userId, table.usageDate),
+  ],
+);
+
+/** User reports of AI-generated or study content (Play AIGC policy). */
+export const contentReports = pgTable("content_reports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  flashcardId: uuid("flashcard_id").references(() => flashcards.id, {
+    onDelete: "set null",
+  }),
+  deckId: uuid("deck_id").references(() => decks.id, {
+    onDelete: "set null",
+  }),
+  reason: text("reason").notNull(),
+  details: text("details"),
+  questionSnapshot: text("question_snapshot"),
+  answerSnapshot: text("answer_snapshot"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});

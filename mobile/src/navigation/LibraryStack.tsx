@@ -15,6 +15,7 @@ import {
 } from '../screens/profile/LegalDocumentScreen';
 import {ProfileScreen} from '../screens/profile/ProfileScreen';
 import {SettingsScreen} from '../screens/profile/SettingsScreen';
+import {ReviewSessionScreen} from '../screens/reviews/ReviewSessionScreen';
 import type {LibraryStackParamList} from './types';
 
 const Stack = createNativeStackNavigator<LibraryStackParamList>();
@@ -56,6 +57,15 @@ export function LibraryStack() {
         name="EditCard"
         component={EditCardScreen}
         options={{headerShown: false}}
+      />
+      <Stack.Screen
+        name="ReviewSession"
+        component={ReviewSessionScreen}
+        options={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          gestureEnabled: true,
+        }}
       />
       <Stack.Screen
         name="ProfileHome"

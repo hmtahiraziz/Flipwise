@@ -11,8 +11,8 @@ import type {
 } from '../../types/api';
 import type {CardFormValues} from '../../lib/schemas';
 
-const GENERATE_TIMEOUT_MS = 120000;
-const IMPORT_TIMEOUT_MS = 60000;
+const GENERATE_TIMEOUT_MS = 180000;
+const IMPORT_TIMEOUT_MS = 90000;
 
 export async function fetchCards(deckId: string): Promise<Flashcard[]> {
   const {data} = await apiClient.get<CardListResponse>(
@@ -50,7 +50,7 @@ export async function generateCards(
 ): Promise<FlashcardDraft[]> {
   const {data} = await apiClient.post<GenerateCardsResponse>(
     `/api/decks/${deckId}/cards/generate`,
-    input,
+    {...input, aiConsent: true},
     {timeout: GENERATE_TIMEOUT_MS, signal},
   );
   return data.cards;
@@ -66,14 +66,14 @@ export async function importPdf(
     name: file.name,
     type: file.type ?? 'application/pdf',
   } as unknown as Blob);
+  // Needed when the PDF is scanned (no text layer) so the server can OCR pages.
+  formData.append('aiConsent', 'true');
 
+  // Do not set Content-Type — RN must attach the multipart boundary.
   const {data} = await apiClient.post<ImportSourceResponse>(
     `/api/decks/${deckId}/cards/import/pdf`,
     formData,
-    {
-      timeout: IMPORT_TIMEOUT_MS,
-      headers: {'Content-Type': 'multipart/form-data'},
-    },
+    {timeout: IMPORT_TIMEOUT_MS},
   );
   return data;
 }
@@ -94,20 +94,28 @@ export async function importScanImage(
   deckId: string,
   file: {uri: string; name: string; type?: string},
 ): Promise<ImportSourceResponse> {
+  const mime = (file.type ?? 'image/jpeg').toLowerCase();
+  const safeType =
+    mime === 'image/jpg' || !mime.startsWith('image/')
+      ? 'image/jpeg'
+      : mime;
+  const safeName = /\.(jpe?g|png|webp|gif)$/i.test(file.name)
+    ? file.name
+    : `${file.name.replace(/\.[^.]+$/, '') || 'scan'}.jpg`;
+
   const formData = new FormData();
   formData.append('file', {
     uri: file.uri,
-    name: file.name,
-    type: file.type ?? 'image/jpeg',
+    name: safeName,
+    type: safeType,
   } as unknown as Blob);
+  formData.append('aiConsent', 'true');
 
+  // Do not set Content-Type — RN must attach the multipart boundary.
   const {data} = await apiClient.post<ImportSourceResponse>(
     `/api/decks/${deckId}/cards/import/image`,
     formData,
-    {
-      timeout: IMPORT_TIMEOUT_MS,
-      headers: {'Content-Type': 'multipart/form-data'},
-    },
+    {timeout: IMPORT_TIMEOUT_MS},
   );
   return data;
 }

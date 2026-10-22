@@ -1,13 +1,15 @@
-# Flipwise brand assets
+# Cardweave brand assets
 
 Cinematic Noir design system — high-contrast obsidian + volt lime.
 
 | File | Use |
 |------|-----|
 | `icon.png` | Master app icon (1024×1024 source) |
-| `flipwise-mark.svg` | Vector mark — overlapping flashcards |
-| `flipwise-logo-stacked.png` | Vertical lockup — splash screen (dark) |
-| `flipwise-wordmark-horizontal.png` | Horizontal lockup — marketing / dark backgrounds |
+| `flipwise-mark.svg` | Vector mark — overlapping flashcards (legacy filename) |
+| `flipwise-logo-stacked.png` | Vertical lockup — splash screen (dark) (legacy filename) |
+| `flipwise-wordmark-horizontal.png` | Horizontal lockup — marketing / dark backgrounds (legacy filename) |
+
+> PNG/SVG lockup filenames still use the pre-rebrand `flipwise-*` prefix. Rename when regenerating store/marketing assets; code uses the SVG mark via `CardweaveLogo`, not these files.
 
 ## Brand colors (Cinematic Noir)
 

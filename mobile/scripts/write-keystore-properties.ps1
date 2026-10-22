@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 $androidDir = (Resolve-Path (Join-Path $PSScriptRoot "..\android")).Path
 $keystorePath = Join-Path $androidDir "app\upload-keystore.jks"
 $propsPath = Join-Path $androidDir "keystore.properties"
-$keyAlias = "flipwise-upload"
+$keyAlias = "cardweave-upload"
 
 if (-not (Test-Path $keystorePath)) {
     Write-Error "Missing $keystorePath - create the keystore first."
