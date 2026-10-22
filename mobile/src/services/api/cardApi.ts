@@ -45,7 +45,7 @@ export async function createCardsBulk(
 
 export async function generateCards(
   deckId: string,
-  input: GenerateCardsRequest,
+  input: Omit<GenerateCardsRequest, 'aiConsent'>,
   signal?: AbortSignal,
 ): Promise<FlashcardDraft[]> {
   const {data} = await apiClient.post<GenerateCardsResponse>(

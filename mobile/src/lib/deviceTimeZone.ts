@@ -8,9 +8,12 @@ export function getDeviceTimeZone(): string {
 }
 
 export function newIdempotencyKey(prefix = 'rv'): string {
+  const webCrypto = (
+    globalThis as {crypto?: {randomUUID?: () => string}}
+  ).crypto;
   const rand =
-    typeof globalThis.crypto?.randomUUID === 'function'
-      ? globalThis.crypto.randomUUID()
+    typeof webCrypto?.randomUUID === 'function'
+      ? webCrypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   return `${prefix}-${rand}`.slice(0, 64);
 }

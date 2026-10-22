@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   captureOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(25, 28, 26, 0.28)',
     justifyContent: 'space-between',
     padding: 12,

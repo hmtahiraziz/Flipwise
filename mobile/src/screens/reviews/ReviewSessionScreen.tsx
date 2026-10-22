@@ -28,7 +28,11 @@ import {libraryTokens} from '../../config/libraryTokens';
 import {brandColors, fonts} from '../../config/theme';
 import {reviewTokens} from '../../config/reviewTokens';
 import {ensureAiProcessingConsent} from '../../lib/aiConsent';
-import {getApiErrorMessage, getExplainErrorMessage} from '../../lib/errors';
+import {
+  getApiErrorMessage,
+  getExplainErrorMessage,
+  isNetworkError,
+} from '../../lib/errors';
 import {useReviewMutations, useReviewQueue} from '../../hooks/useReviews';
 import type {ReviewSessionParams} from '../../navigation/types';
 import {explainCard} from '../../services/api/reviewApi';
