@@ -8,8 +8,8 @@
     "android:bundle:unix": "cd android && ./gradlew bundleRelease",
     "ios": "react-native run-ios",
     "lint": "eslint .",
-    "start": "react-native start --port 8081",
-    "start:lan": "react-native start --host 0.0.0.0 --port 8081",
+    "start": "node init && react-native start --port 8081",
+    "start:lan": "node init && react-native start --host 0.0.0.0 --port 8081",
     "test": "jest",
     "keystore:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/generate-upload-keystore.ps1",
     "keystore:properties": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/write-keystore-properties.ps1"
