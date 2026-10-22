@@ -129,7 +129,7 @@ export function EmailAuthScreen({navigation, route}: Props) {
   const form = isSignIn ? signInForm : signUpForm;
 
   return (
-    <AuthScreenShell>
+    <AuthScreenShell onBack={() => navigation.goBack()}>
       <AuthBrandHeader
         subtitle={
           isSignIn

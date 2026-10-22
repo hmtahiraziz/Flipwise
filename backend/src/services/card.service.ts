@@ -113,6 +113,13 @@ export async function getCardForUser(
   return row;
 }
 
+async function assertCardOwnership(
+  userId: string,
+  cardId: string,
+): Promise<FlashcardRecord> {
+  return getCardForUser(userId, cardId);
+}
+
 export async function listCardsForDeck(
   userId: string,
   deckId: string,
